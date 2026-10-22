@@ -36,7 +36,7 @@ to allow for 4 GB of RAM. Alternatively, if you want to perform lots of operatio
 
 ## Burst as Image / Export Multipage Tiff Features
 
-To burst pages as image files or export in multipage Tiff, the shared library of the Java binding of MuPDF 1.28.5 is required to be in the same path with this jar. The release archive for each platform includes it, and `ant natives` builds it from the MuPDF source. Images are exported at 72 dpi.
+To burst pages as image files or export in multipage Tiff, the shared library of MuPDF's Java binding is required to be in the same path with this jar. The release archive for each platform includes it, and `ant natives` builds it from the MuPDF source. Images are exported at 72 dpi.
 
 ### Shared Libraries
 
@@ -52,9 +52,11 @@ Building needs JDK 21 or newer and Apache Ant 1.10.
 
 ```bash
 ant jar      # downloads the libraries into lib/ and builds jpdftweak.jar
-ant natives  # builds MuPDF's shared library for this platform into build/natives
+ant natives  # builds MuPDF's shared library for this platform into build/natives/<version>
 ant test     # builds both and runs the tests
 ```
+
+`build.xml` pins the version and SHA-256 checksum of every library it downloads.
 
 `ant natives` needs Visual Studio 2022 or newer, or its Build Tools, on Windows. On other systems it needs make, a C compiler, pkg-config, and the FreeType, OpenSSL, and zlib development files. The GUI test needs a display. On Linux without one, run `xvfb-run ant test`.
 

@@ -1,16 +1,47 @@
 <?xml version="1.0"?>
 <project name="jPDFtweak" default="jar">
 
-	<property name="LIB" value="lib" />
-	<property name="ITEXT" value="${LIB}/itextpdf-5.5.13.6.jar" />
-	<property name="BCPROV" value="${LIB}/bcprov-jdk18on-1.86.jar" />
-	<property name="BCPKIX" value="${LIB}/bcpkix-jdk18on-1.86.jar" />
-	<property name="BCUTIL" value="${LIB}/bcutil-jdk18on-1.86.jar" />
-	<property name="FORMS" value="${LIB}/jgoodies-forms-1.9.0.jar" />
-	<property name="COMMON" value="${LIB}/jgoodies-common-1.8.1.jar" />
+	<!--
+		The libraries' versions and the SHA-256 checksums of their downloads, one property per line, which the
+		weekly upstream workflow (.github/upstream.sh) rewrites when upstream releases a newer version.
+	-->
+	<property name="ITEXT_VERSION" value="5.5.13.6" />
+	<property name="ITEXT_SHA256" value="c2b290659fd4381e5512cc9e69c67b409150b84921dc367b1ec983c376ca18f6" />
+	<property name="BC_VERSION" value="1.86" />
+	<property name="BCPROV_SHA256" value="2af190b300cbb0b35e248ccf5f4a06b6072030aeb3da7a98ec73abe5b4cb371f" />
+	<property name="BCPKIX_SHA256" value="8d8b41a4b149bdae8d331f059a578870954d1e3ff29f8269a9eb3ee19a7e4ef7" />
+	<property name="BCUTIL_SHA256" value="1c268e15f785aafb1e4670d8d6e5f856f69475e96c162dadcd1ff9b350e9139f" />
+	<property name="FORMS_VERSION" value="1.9.0" />
+	<property name="FORMS_SHA256" value="755c79501abd806f5aa83257dc88b2ca5923e6965f3cbfe873116c7c9768210a" />
+	<property name="COMMON_VERSION" value="1.8.1" />
+	<property name="COMMON_SHA256" value="ddca10c16e1dc7a1b399c14580f0aae23014851e57d224cb96c260e6d649d2ad" />
 	<property name="MUPDF_VERSION" value="1.28.5" />
+	<property name="MUPDF_SHA256" value="98a5c10cda20c3992cdf76ff6b2a1149c32bd79cc796d3f703230b1185b7e934" />
+
+	<property name="LIB" value="lib" />
+	<property name="ITEXT" value="${LIB}/itextpdf-${ITEXT_VERSION}.jar" />
+	<property name="BCPROV" value="${LIB}/bcprov-jdk18on-${BC_VERSION}.jar" />
+	<property name="BCPKIX" value="${LIB}/bcpkix-jdk18on-${BC_VERSION}.jar" />
+	<property name="BCUTIL" value="${LIB}/bcutil-jdk18on-${BC_VERSION}.jar" />
+	<property name="FORMS" value="${LIB}/jgoodies-forms-${FORMS_VERSION}.jar" />
+	<property name="COMMON" value="${LIB}/jgoodies-common-${COMMON_VERSION}.jar" />
 	<property name="MUPDF" value="${LIB}/mupdf-${MUPDF_VERSION}.jar" />
+	<property name="MUPDF_URL" value="https://mupdf.com/downloads/archive/mupdf-${MUPDF_VERSION}-source.tar.gz" />
+	<property name="MUPDF_TARBALL" value="build/mupdf-${MUPDF_VERSION}-source.tar.gz" />
 	<property name="MUPDF_SOURCE" value="build/mupdf-${MUPDF_VERSION}-source" />
+	<!-- MuPDF's shared library, in a folder per version so that it always matches the jar -->
+	<property name="NATIVES" value="build/natives/${MUPDF_VERSION}" />
+
+	<!-- Named one by one, as lib/ keeps the jars of older versions after an update -->
+	<path id="libraries">
+		<pathelement location="${ITEXT}" />
+		<pathelement location="${BCPROV}" />
+		<pathelement location="${BCPKIX}" />
+		<pathelement location="${BCUTIL}" />
+		<pathelement location="${FORMS}" />
+		<pathelement location="${COMMON}" />
+		<pathelement location="${MUPDF}" />
+	</path>
 
 	<target name="clean">
 		<delete dir="build" />
@@ -25,7 +56,7 @@
 			<get src="@{url}" dest="@{file}" skipexisting="true" />
 			<local name="verified" />
 			<checksum file="@{file}" algorithm="SHA-256" property="@{sha256}" verifyproperty="verified" />
-			<fail message="@{file} does not have the SHA-256 checksum @{sha256}; delete it to download it again.">
+			<fail message="@{file} does not have the SHA-256 checksum @{sha256}. Delete it to download it again.">
 				<condition>
 					<isfalse value="${verified}" />
 				</condition>
@@ -36,18 +67,18 @@
 	<property name="MAVEN" value="https://repo1.maven.org/maven2" />
 
 	<target name="deps">
-		<download file="${ITEXT}" url="${MAVEN}/com/itextpdf/itextpdf/5.5.13.6/itextpdf-5.5.13.6.jar"
-			sha256="c2b290659fd4381e5512cc9e69c67b409150b84921dc367b1ec983c376ca18f6" />
-		<download file="${BCPROV}" url="${MAVEN}/org/bouncycastle/bcprov-jdk18on/1.86/bcprov-jdk18on-1.86.jar"
-			sha256="2af190b300cbb0b35e248ccf5f4a06b6072030aeb3da7a98ec73abe5b4cb371f" />
-		<download file="${BCPKIX}" url="${MAVEN}/org/bouncycastle/bcpkix-jdk18on/1.86/bcpkix-jdk18on-1.86.jar"
-			sha256="8d8b41a4b149bdae8d331f059a578870954d1e3ff29f8269a9eb3ee19a7e4ef7" />
-		<download file="${BCUTIL}" url="${MAVEN}/org/bouncycastle/bcutil-jdk18on/1.86/bcutil-jdk18on-1.86.jar"
-			sha256="1c268e15f785aafb1e4670d8d6e5f856f69475e96c162dadcd1ff9b350e9139f" />
-		<download file="${FORMS}" url="${MAVEN}/com/jgoodies/jgoodies-forms/1.9.0/jgoodies-forms-1.9.0.jar"
-			sha256="755c79501abd806f5aa83257dc88b2ca5923e6965f3cbfe873116c7c9768210a" />
-		<download file="${COMMON}" url="${MAVEN}/com/jgoodies/jgoodies-common/1.8.1/jgoodies-common-1.8.1.jar"
-			sha256="ddca10c16e1dc7a1b399c14580f0aae23014851e57d224cb96c260e6d649d2ad" />
+		<download file="${ITEXT}" sha256="${ITEXT_SHA256}"
+			url="${MAVEN}/com/itextpdf/itextpdf/${ITEXT_VERSION}/itextpdf-${ITEXT_VERSION}.jar" />
+		<download file="${BCPROV}" sha256="${BCPROV_SHA256}"
+			url="${MAVEN}/org/bouncycastle/bcprov-jdk18on/${BC_VERSION}/bcprov-jdk18on-${BC_VERSION}.jar" />
+		<download file="${BCPKIX}" sha256="${BCPKIX_SHA256}"
+			url="${MAVEN}/org/bouncycastle/bcpkix-jdk18on/${BC_VERSION}/bcpkix-jdk18on-${BC_VERSION}.jar" />
+		<download file="${BCUTIL}" sha256="${BCUTIL_SHA256}"
+			url="${MAVEN}/org/bouncycastle/bcutil-jdk18on/${BC_VERSION}/bcutil-jdk18on-${BC_VERSION}.jar" />
+		<download file="${FORMS}" sha256="${FORMS_SHA256}"
+			url="${MAVEN}/com/jgoodies/jgoodies-forms/${FORMS_VERSION}/jgoodies-forms-${FORMS_VERSION}.jar" />
+		<download file="${COMMON}" sha256="${COMMON_SHA256}"
+			url="${MAVEN}/com/jgoodies/jgoodies-common/${COMMON_VERSION}/jgoodies-common-${COMMON_VERSION}.jar" />
 	</target>
 
 	<!-- The MuPDF source release, from which mupdf-jar and natives build its Java binding -->
@@ -57,9 +88,7 @@
 
 	<target name="mupdf-source" depends="mupdf-source-check" unless="mupdf.source.present">
 		<mkdir dir="build" />
-		<download file="build/mupdf-${MUPDF_VERSION}-source.tar.gz"
-			url="https://mupdf.com/downloads/archive/mupdf-${MUPDF_VERSION}-source.tar.gz"
-			sha256="98a5c10cda20c3992cdf76ff6b2a1149c32bd79cc796d3f703230b1185b7e934" />
+		<download file="${MUPDF_TARBALL}" url="${MUPDF_URL}" sha256="${MUPDF_SHA256}" />
 		<!-- tar rather than untar, which does not restore symbolic links; relative paths, as GNU tar reads C: as a host -->
 		<exec executable="tar" dir="build" failonerror="true">
 			<arg value="-xzf" />
@@ -88,16 +117,7 @@
 			old value of a constant such as Main.VERSION in every class that uses it. -->
 		<delete dir="build/bin" />
 		<mkdir dir="build/bin" />
-		<javac srcdir="src" destdir="build/bin" release="21" includeantruntime="false">
-			<classpath>
-				<pathelement path="${ITEXT}" />
-				<pathelement path="${BCPROV}" />
-				<pathelement path="${BCPKIX}" />
-				<pathelement path="${FORMS}" />
-				<pathelement path="${COMMON}" />
-				<pathelement path="${MUPDF}" />
-			</classpath>
-		</javac>
+		<javac srcdir="src" destdir="build/bin" release="21" includeantruntime="false" classpathref="libraries" />
 		<copy todir="build/bin">
 			<fileset dir="src">
 				<exclude name="**/*.java"/>
@@ -128,9 +148,9 @@
 	</target>
 
 	<!--
-		MuPDF's shared library for its Java binding, built from the MuPDF source for this platform into build/natives.
-		Windows needs Visual Studio or its Build Tools, other systems make, a C compiler, and pkg-config with the
-		FreeType, OpenSSL, and zlib development files.
+		MuPDF's shared library for its Java binding, built from the MuPDF source for this platform into
+		build/natives/<version>. Windows needs Visual Studio or its Build Tools, other systems make, a C compiler,
+		and pkg-config with the FreeType, OpenSSL, and zlib development files.
 	-->
 	<condition property="is.windows">
 		<os family="windows" />
@@ -140,7 +160,7 @@
 	</condition>
 
 	<target name="natives-check">
-		<available property="natives.present" file="build/natives/${natives.file}" />
+		<available property="natives.present" file="${NATIVES}/${natives.file}" />
 		<condition property="natives.msbuild">
 			<and>
 				<isset property="is.windows" />
@@ -188,7 +208,7 @@
 			<arg line="/t:javaviewerlib /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=${msvc.toolset} /m /nologo /v:minimal" />
 		</exec>
 		<!-- MuPDF's Context class loads mupdf_java64 -->
-		<copy file="${win32}/x64/Release/javaviewerlib64.dll" tofile="build/natives/${natives.file}" />
+		<copy file="${win32}/x64/Release/javaviewerlib64.dll" tofile="${NATIVES}/${natives.file}" />
 	</target>
 
 	<target name="natives-unix" depends="natives-check" if="natives.make">
@@ -199,7 +219,7 @@
 			<arg value="JAVAC_FLAGS=--release 21 -nowarn" />
 			<arg value="../../build/java/release/${natives.file}" />
 		</exec>
-		<copy file="${MUPDF_SOURCE}/build/java/release/${natives.file}" todir="build/natives" />
+		<copy file="${MUPDF_SOURCE}/build/java/release/${natives.file}" todir="${NATIVES}" />
 	</target>
 
 	<!-- Neither JVM gets java.library.path: jPDF Tweak must find the library next to the jar by itself. -->
@@ -209,12 +229,12 @@
 			<jvmarg value="--add-exports=java.base/sun.security.pkcs=ALL-UNNAMED" />
 			<jvmarg value="--enable-native-access=ALL-UNNAMED" />
 			<sysproperty key="java.awt.headless" value="true" />
-			<sysproperty key="jpdftweak.test.natives" file="build/natives" />
+			<sysproperty key="jpdftweak.test.natives" file="${NATIVES}" />
 			<arg value="main" />
 			<classpath>
 				<pathelement path="build/test" />
 				<pathelement path="build/bin" />
-				<fileset dir="${LIB}" includes="*.jar" />
+				<path refid="libraries" />
 			</classpath>
 		</java>
 		<java classname="jpdftweak.RegressionTests" fork="true" failonerror="true" dir="${basedir}">
@@ -225,7 +245,7 @@
 			<classpath>
 				<pathelement path="build/test" />
 				<pathelement path="build/bin" />
-				<fileset dir="${LIB}" includes="*.jar" />
+				<path refid="libraries" />
 			</classpath>
 		</java>
 		<antcall target="test-gui" />
@@ -248,7 +268,7 @@
 			<classpath>
 				<pathelement path="build/test" />
 				<pathelement path="build/bin" />
-				<fileset dir="${LIB}" includes="*.jar" />
+				<path refid="libraries" />
 			</classpath>
 		</java>
 	</target>

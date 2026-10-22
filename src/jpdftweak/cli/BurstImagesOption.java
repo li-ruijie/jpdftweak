@@ -67,7 +67,7 @@ public class BurstImagesOption implements CommandOption {
 			String sharedLibraryName = PdfToImage.checkForLibraries();
 			if(sharedLibraryName != null){
 				if (sharedLibraryName.equals("nomupdf")) {
-					throw new DocumentException("\"mupdf-1.28.5.jar\" does not exist in lib folder");
+					throw new DocumentException("\"mupdf-*.jar\" does not exist in lib folder");
 				} else if(sharedLibraryName.contains(".")){
 					throw new DocumentException("\"" + sharedLibraryName
 							+ "\" does not exist in \"" + jarPath + "\"");

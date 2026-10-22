@@ -67,17 +67,17 @@ public class Main {
 	private static String findMissingLibName() {
 		String result = null;
 		try {
-			result = "itextpdf-5.5.13.6";
+			result = "itextpdf-*";
 			Class.forName("com.itextpdf.text.DocumentException");
-			result = "jgoodies-common-1.8.1";
+			result = "jgoodies-common-*";
 			Class.forName("com.jgoodies.common.base.Preconditions");
-			result = "jgoodies-forms-1.9.0";
+			result = "jgoodies-forms-*";
 			Class.forName("com.jgoodies.forms.layout.FormLayout");
-			result = "bcprov-jdk18on-1.86";
+			result = "bcprov-jdk18on-*";
 			Class.forName("org.bouncycastle.asn1.ASN1OctetString");
-			result = "bcutil-jdk18on-1.86";
+			result = "bcutil-jdk18on-*";
 			Class.forName("org.bouncycastle.asn1.cms.ContentInfo");
-			result = "bcpkix-jdk18on-1.86";
+			result = "bcpkix-jdk18on-*";
 			Class.forName("org.bouncycastle.cms.CMSSignedData");
 			result = null;
 		} catch (Throwable t) {

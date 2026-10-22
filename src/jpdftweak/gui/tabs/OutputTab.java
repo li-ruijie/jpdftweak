@@ -211,7 +211,7 @@ public class OutputTab extends Tab {
 						"/warning.png")));
 				warning.setToolTipText("<html>This feature is not available<br>" +
 						"without MuPDF. Verify that<br>" +
-						"lib/mupdf-1.28.5.jar is present and your<br>" +
+						"lib/mupdf-*.jar is present and your<br>" +
 						"download was not corrupted.");
 				multipageTiff.setSelected(false);
 				fileType.setSelectedItem(PdfToImage.ImageType.PDF);

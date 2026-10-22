@@ -78,7 +78,7 @@ jobs:
             if [ "$platform" = none ]; then
               name="jpdftweak-$version"
             else
-              cp natives/natives-$platform/build/natives/* "$dir/"
+              cp natives/natives-$platform/build/natives/*/* "$dir/"
               name="jpdftweak-$version-$platform"
             fi
             (cd "stage/$platform" && zip -qr "../../dist/$name.zip" "jpdftweak-$version")

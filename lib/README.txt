@@ -3,28 +3,28 @@ OBTAINING LIBRARIES
 
 "ant deps", which "ant compile" runs first, downloads these libraries
 from Maven Central into this directory and checks them against the
-SHA-256 checksums listed in build.xml:
+SHA-256 checksums listed in build.xml, which also names their versions:
 
-* iText 5.5.13.6
-  -> itextpdf-5.5.13.6.jar
+* iText 5
+  -> itextpdf-<version>.jar
 
-* BouncyCastle 1.86 (Provider, PKIX, and Utilities, for Java 8 and later)
-  -> bcprov-jdk18on-1.86.jar
-  -> bcpkix-jdk18on-1.86.jar
-  -> bcutil-jdk18on-1.86.jar
+* BouncyCastle (Provider, PKIX, and Utilities, for Java 8 and later)
+  -> bcprov-jdk18on-<version>.jar
+  -> bcpkix-jdk18on-<version>.jar
+  -> bcutil-jdk18on-<version>.jar
 
-* JGoodies Forms 1.9.0
-  -> jgoodies-forms-1.9.0.jar
+* JGoodies Forms
+  -> jgoodies-forms-<version>.jar
 
-* JGoodies Common 1.8.1
-  -> jgoodies-common-1.8.1.jar
+* JGoodies Common
+  -> jgoodies-common-<version>.jar
 
 "ant mupdf-jar", which "ant compile" also runs first, downloads the
 MuPDF source release, checks it against the SHA-256 checksum listed in
 build.xml, and compiles its Java binding into this directory:
 
-* MuPDF 1.28.5, from https://mupdf.com/releases
-  -> mupdf-1.28.5.jar
+* MuPDF, from https://mupdf.com/releases
+  -> mupdf-<version>.jar
 
 The binding's shared library is not kept here. "ant natives" builds it
-from the same source into build/natives.
+from the same source into build/natives/<version>.
