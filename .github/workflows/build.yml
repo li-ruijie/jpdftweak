@@ -1,0 +1,124 @@
+# Builds MuPDF's Java binding for each platform, then builds jPDF Tweak and runs
+# its tests on each platform and supported Java version. The release workflow
+# calls this workflow and packages what it uploads. Every action is pinned to a
+# full commit SHA, with the version tag in a trailing comment for Dependabot.
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_call:
+
+# Deny everything at the top. Each job grants only what it needs.
+permissions: {}
+
+jobs:
+  natives:
+    name: MuPDF library (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            os: windows-latest
+            library: mupdf_java64.dll
+          # Ubuntu 22.04 keeps the glibc and OpenSSL requirements of the library low
+          - platform: linux-x64
+            os: ubuntu-22.04
+            library: libmupdf_java64.so
+          - platform: linux-arm64
+            os: ubuntu-22.04-arm
+            library: libmupdf_java64.so
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install the build tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ant pkg-config libfreetype-dev libssl-dev zlib1g-dev
+
+      # The library only changes with build.xml, which names the MuPDF version
+      - name: Restore an earlier build
+        id: cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            build/natives/${{ matrix.library }}
+            lib/mupdf-*.jar
+          key: mupdf-${{ matrix.platform }}-${{ hashFiles('build.xml') }}
+
+      - name: Build MuPDF's Java binding
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: ant -noinput mupdf-jar natives
+
+      - name: Upload it
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: natives-${{ matrix.platform }}
+          path: |
+            build/natives/${{ matrix.library }}
+            lib/mupdf-*.jar
+          if-no-files-found: error
+
+  test:
+    name: Test (${{ matrix.platform }}, Java ${{ matrix.java }})
+    needs: natives
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: windows-x64, os: windows-latest, java: "21" }
+          - { platform: windows-x64, os: windows-latest, java: "25" }
+          - { platform: linux-x64, os: ubuntu-22.04, java: "21" }
+          - { platform: linux-x64, os: ubuntu-22.04, java: "25" }
+          - { platform: linux-arm64, os: ubuntu-22.04-arm, java: "21" }
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - name: Install Ant and a virtual display
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ant xvfb
+
+      # Puts the library into build/natives and the jar into lib/, so ant builds neither again
+      - name: Download MuPDF's Java binding
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: natives-${{ matrix.platform }}
+
+      - name: Build and test
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run --auto-servernum ant -noinput test
+          else
+            ant -noinput test
+          fi

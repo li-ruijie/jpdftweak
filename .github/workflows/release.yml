@@ -1,0 +1,92 @@
+# Release workflow: on a version tag, builds and tests jPDF Tweak on every
+# platform (through build.yml), then publishes one archive per platform with
+# MuPDF's library, and one without it. Every action is pinned to a full commit
+# SHA. The trailing comment carries the version tag so that Dependabot can
+# propose the bump.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# Deny everything at the top. Each job grants only what it needs.
+permissions: {}
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject tags outside the release pattern
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! printf '%s\n' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+[a-z]?$'; then
+            echo "::error::Tag '$TAG' does not match ^v[0-9]+\.[0-9]+\.[0-9]+[a-z]?$"
+            exit 1
+          fi
+
+  build:
+    needs: check-release
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build.yml
+
+  release:
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Download MuPDF's Java binding for every platform
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: natives-*
+          path: natives
+
+      - name: Build the release artefacts
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          # The Java classes are the same on every platform
+          cp natives/natives-linux-x64/lib/mupdf-*.jar lib/
+          ant -noinput jar
+          reported="$(java -jar jpdftweak.jar -v)"
+          if [ "$reported" != "JPDF Tweak $version" ]; then
+            echo "::error::The tag is $TAG but the jar reports '$reported'"
+            exit 1
+          fi
+          mkdir -p dist
+          for platform in none windows-x64 linux-x64 linux-arm64; do
+            dir="stage/$platform/jpdftweak-$version"
+            mkdir -p "$dir/lib"
+            cp jpdftweak.jar jpdftweak.cmd LICENSE README.md icon.ico "$dir/"
+            cp -r icons manual "$dir/"
+            cp lib/*.jar lib/README.txt "$dir/lib/"
+            if [ "$platform" = none ]; then
+              name="jpdftweak-$version"
+            else
+              cp natives/natives-$platform/build/natives/* "$dir/"
+              name="jpdftweak-$version-$platform"
+            fi
+            (cd "stage/$platform" && zip -qr "../../dist/$name.zip" "jpdftweak-$version")
+          done
+          ls -l dist
+
+      - name: Publish the GitHub release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          files: dist/*
+          generate_release_notes: true

@@ -1,0 +1,259 @@
+<?xml version="1.0"?>
+<project name="jPDFtweak" default="jar">
+
+	<property name="LIB" value="lib" />
+	<property name="ITEXT" value="${LIB}/itextpdf-5.5.13.6.jar" />
+	<property name="BCPROV" value="${LIB}/bcprov-jdk18on-1.86.jar" />
+	<property name="BCPKIX" value="${LIB}/bcpkix-jdk18on-1.86.jar" />
+	<property name="BCUTIL" value="${LIB}/bcutil-jdk18on-1.86.jar" />
+	<property name="FORMS" value="${LIB}/jgoodies-forms-1.9.0.jar" />
+	<property name="COMMON" value="${LIB}/jgoodies-common-1.8.1.jar" />
+	<property name="MUPDF_VERSION" value="1.28.5" />
+	<property name="MUPDF" value="${LIB}/mupdf-${MUPDF_VERSION}.jar" />
+	<property name="MUPDF_SOURCE" value="build/mupdf-${MUPDF_VERSION}-source" />
+
+	<target name="clean">
+		<delete dir="build" />
+	</target>
+
+	<!-- Downloads a file unless it is there, then checks its SHA-256. -->
+	<macrodef name="download">
+		<attribute name="url" />
+		<attribute name="file" />
+		<attribute name="sha256" />
+		<sequential>
+			<get src="@{url}" dest="@{file}" skipexisting="true" />
+			<local name="verified" />
+			<checksum file="@{file}" algorithm="SHA-256" property="@{sha256}" verifyproperty="verified" />
+			<fail message="@{file} does not have the SHA-256 checksum @{sha256}; delete it to download it again.">
+				<condition>
+					<isfalse value="${verified}" />
+				</condition>
+			</fail>
+		</sequential>
+	</macrodef>
+
+	<property name="MAVEN" value="https://repo1.maven.org/maven2" />
+
+	<target name="deps">
+		<download file="${ITEXT}" url="${MAVEN}/com/itextpdf/itextpdf/5.5.13.6/itextpdf-5.5.13.6.jar"
+			sha256="c2b290659fd4381e5512cc9e69c67b409150b84921dc367b1ec983c376ca18f6" />
+		<download file="${BCPROV}" url="${MAVEN}/org/bouncycastle/bcprov-jdk18on/1.86/bcprov-jdk18on-1.86.jar"
+			sha256="2af190b300cbb0b35e248ccf5f4a06b6072030aeb3da7a98ec73abe5b4cb371f" />
+		<download file="${BCPKIX}" url="${MAVEN}/org/bouncycastle/bcpkix-jdk18on/1.86/bcpkix-jdk18on-1.86.jar"
+			sha256="8d8b41a4b149bdae8d331f059a578870954d1e3ff29f8269a9eb3ee19a7e4ef7" />
+		<download file="${BCUTIL}" url="${MAVEN}/org/bouncycastle/bcutil-jdk18on/1.86/bcutil-jdk18on-1.86.jar"
+			sha256="1c268e15f785aafb1e4670d8d6e5f856f69475e96c162dadcd1ff9b350e9139f" />
+		<download file="${FORMS}" url="${MAVEN}/com/jgoodies/jgoodies-forms/1.9.0/jgoodies-forms-1.9.0.jar"
+			sha256="755c79501abd806f5aa83257dc88b2ca5923e6965f3cbfe873116c7c9768210a" />
+		<download file="${COMMON}" url="${MAVEN}/com/jgoodies/jgoodies-common/1.8.1/jgoodies-common-1.8.1.jar"
+			sha256="ddca10c16e1dc7a1b399c14580f0aae23014851e57d224cb96c260e6d649d2ad" />
+	</target>
+
+	<!-- The MuPDF source release, from which mupdf-jar and natives build its Java binding -->
+	<target name="mupdf-source-check">
+		<available property="mupdf.source.present" file="${MUPDF_SOURCE}/platform/java/src" type="dir" />
+	</target>
+
+	<target name="mupdf-source" depends="mupdf-source-check" unless="mupdf.source.present">
+		<mkdir dir="build" />
+		<download file="build/mupdf-${MUPDF_VERSION}-source.tar.gz"
+			url="https://mupdf.com/downloads/archive/mupdf-${MUPDF_VERSION}-source.tar.gz"
+			sha256="98a5c10cda20c3992cdf76ff6b2a1149c32bd79cc796d3f703230b1185b7e934" />
+		<!-- tar rather than untar, which does not restore symbolic links; relative paths, as GNU tar reads C: as a host -->
+		<exec executable="tar" dir="build" failonerror="true">
+			<arg value="-xzf" />
+			<arg value="mupdf-${MUPDF_VERSION}-source.tar.gz" />
+		</exec>
+	</target>
+
+	<target name="mupdf-jar-check">
+		<available property="mupdf.jar.present" file="${MUPDF}" />
+	</target>
+
+	<!-- MuPDF's build compiles the Java classes for Java 7, which current JDKs refuse -->
+	<target name="mupdf-jar" depends="mupdf-jar-check" unless="mupdf.jar.present">
+		<antcall target="mupdf-source" />
+		<mkdir dir="build/mupdf-classes" />
+		<!-- The classes MuPDF's own Java build compiles: fitz, without its Android package -->
+		<javac srcdir="${MUPDF_SOURCE}/platform/java/src" includes="com/artifex/mupdf/fitz/*.java" destdir="build/mupdf-classes"
+			release="21" includeantruntime="false" encoding="UTF-8" nowarn="true">
+			<compilerarg value="-Xlint:-removal" />
+		</javac>
+		<jar destfile="${MUPDF}" basedir="build/mupdf-classes" />
+	</target>
+
+	<target name="compile" depends="deps, mupdf-jar">
+		<!-- Compile everything from scratch. An incremental build keeps the classes of deleted sources, and the
+			old value of a constant such as Main.VERSION in every class that uses it. -->
+		<delete dir="build/bin" />
+		<mkdir dir="build/bin" />
+		<javac srcdir="src" destdir="build/bin" release="21" includeantruntime="false">
+			<classpath>
+				<pathelement path="${ITEXT}" />
+				<pathelement path="${BCPROV}" />
+				<pathelement path="${BCPKIX}" />
+				<pathelement path="${FORMS}" />
+				<pathelement path="${COMMON}" />
+				<pathelement path="${MUPDF}" />
+			</classpath>
+		</javac>
+		<copy todir="build/bin">
+			<fileset dir="src">
+				<exclude name="**/*.java"/>
+			</fileset>
+		</copy>
+	</target>
+
+	<target name="jar" depends="compile">
+		<jar destfile="jpdftweak.jar" basedir="build/bin">
+			<manifest>
+				<attribute name="Main-Class" value="jpdftweak.Main"/>
+				<attribute name="Class-Path" value="${ITEXT} ${BCPROV} ${BCPKIX} ${BCUTIL} ${FORMS} ${COMMON} ${MUPDF}"/>
+				<!-- Java 22 and later warn about, and later releases will refuse, native calls without it -->
+				<attribute name="Enable-Native-Access" value="ALL-UNNAMED"/>
+			</manifest>
+		</jar>
+	</target>
+	
+	<target name="compile-tests" depends="compile">
+		<delete dir="build/test" />
+		<mkdir dir="build/test" />
+		<javac srcdir="test" destdir="build/test" release="21" includeantruntime="false">
+			<classpath>
+				<pathelement path="build/bin" />
+				<pathelement path="${ITEXT}" />
+			</classpath>
+		</javac>
+	</target>
+
+	<!--
+		MuPDF's shared library for its Java binding, built from the MuPDF source for this platform into build/natives.
+		Windows needs Visual Studio or its Build Tools, other systems make, a C compiler, and pkg-config with the
+		FreeType, OpenSSL, and zlib development files.
+	-->
+	<condition property="is.windows">
+		<os family="windows" />
+	</condition>
+	<condition property="natives.file" value="mupdf_java64.dll" else="libmupdf_java64.so">
+		<isset property="is.windows" />
+	</condition>
+
+	<target name="natives-check">
+		<available property="natives.present" file="build/natives/${natives.file}" />
+		<condition property="natives.msbuild">
+			<and>
+				<isset property="is.windows" />
+				<not><isset property="natives.present" /></not>
+			</and>
+		</condition>
+		<condition property="natives.make">
+			<and>
+				<not><isset property="is.windows" /></not>
+				<not><isset property="natives.present" /></not>
+			</and>
+		</condition>
+	</target>
+
+	<target name="natives" depends="natives-check, natives-windows, natives-unix">
+		<!-- A file with the library's name that cannot be loaded -->
+		<mkdir dir="build/badnatives" />
+		<touch file="build/badnatives/${natives.file}" />
+	</target>
+
+	<target name="natives-windows" depends="natives-check" if="natives.msbuild">
+		<antcall target="mupdf-source" />
+		<property name="vswhere" location="C:/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe" />
+		<exec executable="${vswhere}" outputproperty="msbuild" failonerror="true">
+			<arg line="-latest -products * -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe" />
+		</exec>
+		<exec executable="${vswhere}" outputproperty="vs.version" failonerror="true">
+			<arg line="-latest -products * -requires Microsoft.Component.MSBuild -property installationVersion" />
+		</exec>
+		<!-- The projects ask for Visual Studio 2019's toolset, so use the installed one -->
+		<condition property="msvc.toolset" value="v145" else="v143">
+			<matches string="${vs.version}" pattern="^18\." />
+		</condition>
+		<property name="win32" location="${MUPDF_SOURCE}/platform/win32" />
+		<!-- The solution leaves the Java library out of Release|x64. Building the project on its own does not
+			work, as its references then ask for the Win32-only bin2coff tool as x64, so add the library to the
+			configuration (unless a previous run did) and build it through the solution, which maps the tool to
+			Win32. -->
+		<replaceregexp file="${win32}/mupdf.sln" flags="m"
+			match="^([\t ]*\{3DB35F2D-9679-4DED-BA0C-240A4E6E6674\}\.Release\|x64)\.ActiveCfg = Release\|x64(\r?\n)(?!\1\.Build\.0)"
+			replace="\1.ActiveCfg = Release|x64\2\1.Build.0 = Release|x64\2" />
+		<exec executable="${msbuild}" failonerror="true">
+			<env key="JAVA_HOME" path="${java.home}" />
+			<arg file="${win32}/mupdf.sln" />
+			<arg line="/t:javaviewerlib /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=${msvc.toolset} /m /nologo /v:minimal" />
+		</exec>
+		<!-- MuPDF's Context class loads mupdf_java64 -->
+		<copy file="${win32}/x64/Release/javaviewerlib64.dll" tofile="build/natives/${natives.file}" />
+	</target>
+
+	<target name="natives-unix" depends="natives-check" if="natives.make">
+		<antcall target="mupdf-source" />
+		<exec executable="make" dir="${MUPDF_SOURCE}/platform/java" failonerror="true">
+			<env key="JAVA_HOME" path="${java.home}" />
+			<arg value="build=release" />
+			<arg value="JAVAC_FLAGS=--release 21 -nowarn" />
+			<arg value="../../build/java/release/${natives.file}" />
+		</exec>
+		<copy file="${MUPDF_SOURCE}/build/java/release/${natives.file}" todir="build/natives" />
+	</target>
+
+	<!-- Neither JVM gets java.library.path: jPDF Tweak must find the library next to the jar by itself. -->
+	<target name="test" depends="jar, compile-tests, natives">
+		<java classname="jpdftweak.RegressionTests" fork="true" failonerror="true" dir="${basedir}">
+			<!-- The signature tests verify signatures with the JDK's PKCS7 class -->
+			<jvmarg value="--add-exports=java.base/sun.security.pkcs=ALL-UNNAMED" />
+			<jvmarg value="--enable-native-access=ALL-UNNAMED" />
+			<sysproperty key="java.awt.headless" value="true" />
+			<sysproperty key="jpdftweak.test.natives" file="build/natives" />
+			<arg value="main" />
+			<classpath>
+				<pathelement path="build/test" />
+				<pathelement path="build/bin" />
+				<fileset dir="${LIB}" includes="*.jar" />
+			</classpath>
+		</java>
+		<java classname="jpdftweak.RegressionTests" fork="true" failonerror="true" dir="${basedir}">
+			<jvmarg value="--enable-native-access=ALL-UNNAMED" />
+			<sysproperty key="java.awt.headless" value="true" />
+			<sysproperty key="jpdftweak.test.natives" file="build/badnatives" />
+			<arg value="nolib" />
+			<classpath>
+				<pathelement path="build/test" />
+				<pathelement path="build/bin" />
+				<fileset dir="${LIB}" includes="*.jar" />
+			</classpath>
+		</java>
+		<antcall target="test-gui" />
+		<antcall target="no-gui" />
+	</target>
+
+	<property environment="env" />
+	<condition property="gui.display">
+		<or>
+			<os family="windows" />
+			<os family="mac" />
+			<isset property="env.DISPLAY" />
+		</or>
+	</condition>
+
+	<!-- Opens the main window, so it needs a display (on Linux without one, run "xvfb-run ant test"). -->
+	<target name="test-gui" if="gui.display">
+		<java classname="jpdftweak.RegressionTests" fork="true" failonerror="true" dir="${basedir}">
+			<arg value="gui" />
+			<classpath>
+				<pathelement path="build/test" />
+				<pathelement path="build/bin" />
+				<fileset dir="${LIB}" includes="*.jar" />
+			</classpath>
+		</java>
+	</target>
+
+	<target name="no-gui" unless="gui.display">
+		<echo level="warning" message="No display, so the GUI test did not run. Use xvfb-run on Linux." />
+	</target>
+</project>

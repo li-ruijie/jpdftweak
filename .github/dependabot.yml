@@ -1,0 +1,9 @@
+# Keeps every SHA-pinned action current with one pull request per action,
+# checked weekly. The Java libraries and MuPDF are pinned with checksums in
+# build.xml, which Dependabot does not read, so they are updated by hand.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

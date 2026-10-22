@@ -1,0 +1,661 @@
+package jpdftweak;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.jar.Attributes;
+import java.util.jar.JarFile;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import jpdftweak.cli.CommandLineInterface;
+import jpdftweak.core.PdfBookmark;
+import jpdftweak.core.PdfToImage;
+
+import com.itextpdf.text.Document;
+import com.itextpdf.text.DocumentException;
+import com.itextpdf.text.PageSize;
+import com.itextpdf.text.Paragraph;
+import com.itextpdf.text.Rectangle;
+import com.itextpdf.text.pdf.PdfAnnotation;
+import com.itextpdf.text.pdf.PdfArray;
+import com.itextpdf.text.pdf.PdfDestination;
+import com.itextpdf.text.pdf.PdfDictionary;
+import com.itextpdf.text.pdf.PdfName;
+import com.itextpdf.text.pdf.PdfNumber;
+import com.itextpdf.text.pdf.PdfReader;
+import com.itextpdf.text.pdf.PdfStamper;
+import com.itextpdf.text.pdf.PdfString;
+import com.itextpdf.text.pdf.PdfWriter;
+import com.itextpdf.text.pdf.SimpleBookmark;
+
+/**
+ * Regression tests, run by the "test" target of build.xml, and the runner for
+ * them and for the tests in the other {@link #SUITES}.
+ *
+ * Each test is a static method taking its own empty working directory. The
+ * method name starts with the group it belongs to. "main_" tests run in a JVM
+ * that can load MuPDF's shared library, and "nolib_" tests in a JVM where a
+ * file of that name exists but cannot be loaded. The system property
+ * jpdftweak.test.natives names the directory holding that file.
+ */
+public class RegressionTests {
+
+	interface Task {
+		void run() throws Exception;
+	}
+
+	/** The classes whose test methods the runner calls. */
+	static final Class<?>[] SUITES = { RegressionTests.class, OperationTests.class };
+
+	public static void main(String[] args) throws Exception {
+		String group = args[0];
+		File work = new File("build/test-work", group).getAbsoluteFile();
+		deleteTree(work);
+		List<Method> tests = new ArrayList<Method>();
+		for (Class<?> suite : SUITES) {
+			for (Method m : suite.getDeclaredMethods()) {
+				if (m.getName().startsWith(group + "_"))
+					tests.add(m);
+			}
+		}
+		if (tests.isEmpty())
+			throw new IllegalStateException("No tests in group " + group);
+		Collections.sort(tests, new Comparator<Method>() {
+			public int compare(Method a, Method b) {
+				return a.getName().compareTo(b.getName());
+			}
+		});
+		int failed = 0;
+		for (Method m : tests) {
+			File dir = new File(work, m.getName());
+			dir.mkdirs();
+			try {
+				m.invoke(null, dir);
+				System.out.println("PASS " + m.getName());
+			} catch (InvocationTargetException ex) {
+				failed++;
+				System.out.println("FAIL " + m.getName() + ": " + ex.getCause());
+				ex.getCause().printStackTrace(System.out);
+			}
+		}
+		System.out.println(group + ": " + (tests.size() - failed) + " passed, " + failed + " failed");
+		// exit explicitly, as the GUI tests leave the AWT threads running
+		System.exit(failed > 0 ? 1 : 0);
+	}
+
+	// ---- tests ----
+
+	static void main_copyKeepsPageCount(File dir) throws Exception {
+		File in = fixture(dir, "in.pdf", 3);
+		File out = new File(dir, "out.pdf");
+		cli(in.getPath(), out.getPath());
+		assertEquals(3, pageCount(out), "page count");
+	}
+
+	static void main_shuffleScalesEachOffsetByItsOwnPercentFlag(File dir) throws Exception {
+		// An A4 page (595 x 842) whose link points at itself, at the top-left corner.
+		File in = fixture(dir, "in.pdf", 1, 1, 1);
+		File absXPercentY = new File(dir, "absx-percenty.pdf");
+		cli(in.getPath(), "-preserveLinks", "On", "-shuffle", "1:!+1N1+0+50%", absXPercentY.getPath());
+		assertEquals("1 0 0 1 0 421 cm", firstPlacement(absXPercentY), "placement for +0 +50%");
+		assertEquals(842f + 421f, linkDestinationTop(absXPercentY), "link destination top for +0 +50%");
+		File percentXAbsY = new File(dir, "percentx-absy.pdf");
+		cli(in.getPath(), "-shuffle", "1:!+1N1+50%+10", percentXAbsY.getPath());
+		assertEquals("1 0 0 1 297.5 10 cm", firstPlacement(percentXAbsY), "placement for +50% +10");
+	}
+
+	static void main_shuffleDropsLinksToPagesItLeavesOut(File dir) throws Exception {
+		// Page 1 links to page 2; the rule keeps the first page of every pair.
+		File in = fixture(dir, "in.pdf", 2, 1, 2);
+		File out = new File(dir, "out.pdf");
+		cli(in.getPath(), "-preserveLinks", "On", "-shuffle", "2:!+1N1+0%+0%", out.getPath());
+		assertEquals(1, pageCount(out), "page count");
+		PdfReader reader = new PdfReader(out.getPath());
+		try {
+			assertTrue(reader.getPageN(1).getAsArray(PdfName.ANNOTS) == null, "link to the left-out page dropped");
+		} finally {
+			reader.close();
+		}
+	}
+
+	static void main_transitionHorizontalBlindsIsSelectable(File dir) throws Exception {
+		File in = fixture(dir, "in.pdf", 2);
+		File out = new File(dir, "out.pdf");
+		cli(in.getPath(), "-trans", "1:Vertical_Blinds,1", "-trans", "2:Horizontal_Blinds,1", out.getPath());
+		PdfReader reader = new PdfReader(out.getPath());
+		try {
+			for (int page = 1; page <= 2; page++) {
+				PdfDictionary trans = reader.getPageN(page).getAsDict(PdfName.TRANS);
+				assertTrue(trans != null, "page " + page + " has a transition");
+				assertEquals(new PdfName("Blinds"), trans.getAsName(PdfName.S), "page " + page + " /S");
+				assertEquals(page == 1 ? PdfName.V : PdfName.H, trans.getAsName(PdfName.DM), "page " + page + " /Dm");
+			}
+		} finally {
+			reader.close();
+		}
+	}
+
+	static void main_transitionAcceptsMultiDigitPages(File dir) throws Exception {
+		File in = fixture(dir, "in.pdf", 12);
+		File out = new File(dir, "out.pdf");
+		cli(in.getPath(), "-trans", "10-~1:Dissolve,1", out.getPath());
+		PdfReader reader = new PdfReader(out.getPath());
+		try {
+			for (int page = 9; page <= 12; page++) {
+				PdfDictionary trans = reader.getPageN(page).getAsDict(PdfName.TRANS);
+				if (page == 9) {
+					assertTrue(trans == null, "page 9 has no transition");
+				} else {
+					assertTrue(trans != null, "page " + page + " has a transition");
+					assertEquals(new PdfName("Dissolve"), trans.getAsName(PdfName.S), "page " + page + " /S");
+				}
+			}
+		} finally {
+			reader.close();
+		}
+	}
+
+	static void main_imageBurstNamesOnlyChangeTheFileExtension(File dir) throws Exception {
+		PdfToImage png = new PdfToImage(true, PdfToImage.ColorMode.RGB, PdfToImage.ImageType.PNG,
+				PdfToImage.TiffCompression.NONE, 100, false);
+		String sep = File.separator;
+		assertEquals("a.dir" + sep + "pg1.png", png.getImageFileName("a.dir" + sep + "pg1", ""), "no extension");
+		assertEquals("a.dir" + sep + "pg1.png", png.getImageFileName("a.dir" + sep + "pg1", ".pdf"), "extension replaced");
+		assertEquals("pg1.2.png", png.getImageFileName("pg1.2", ""), "dot in the page label kept");
+		assertEquals("pg1.2_x.png", png.getImageFileName("pg1.2", "_x"), "suffix without extension");
+
+		final File in = fixture(dir, "in.pdf", 2);
+		final File folder = new File(dir, "a.dir");
+		withJarFolder(nativesDir(), new Task() {
+			public void run() throws Exception {
+				cli(in.getPath(), "-burstfiletype", "PNG", "-ob", new File(folder, "pg*").getPath());
+			}
+		});
+		for (int page = 1; page <= 2; page++) {
+			File image = new File(folder, "pg" + page + ".png");
+			assertTrue(image.isFile(), image + " written");
+		}
+		assertTrue(!new File(dir, "a.png").exists(), "nothing written next to the folder");
+	}
+
+	static void main_tiffOutputReplacesAnExistingFile(File dir) throws Exception {
+		final File in = fixture(dir, "in.pdf", 2);
+		final File multi = new File(dir, "multi.tiff");
+		final File burst = new File(dir, "t*.tiff");
+		withJarFolder(nativesDir(), new Task() {
+			public void run() throws Exception {
+				for (int run = 1; run <= 2; run++) {
+					cli(in.getPath(), "-oi", multi.getPath());
+					cli(in.getPath(), "-burstfiletype", "TIFF", "-ob", burst.getPath());
+				}
+			}
+		});
+		assertEquals(2, tiffPageCount(multi), "pages in " + multi + " after writing it twice");
+		for (int page = 1; page <= 2; page++) {
+			File image = new File(dir, "t" + page + ".tiff");
+			assertEquals(1, tiffPageCount(image), "pages in " + image + " after writing it twice");
+		}
+	}
+
+	static void main_imageOptionsOnlyNeedTheLibraryForImageOutput(File dir) throws Exception {
+		final File in = fixture(dir, "in.pdf", 1);
+		final File out = new File(dir, "out.pdf");
+		File noLibrary = new File(dir, "nolib");
+		noLibrary.mkdirs();
+		withJarFolder(noLibrary, new Task() {
+			public void run() throws Exception {
+				cli(in.getPath(), "-colormode", "GRAY", "-tiffcompression", "LZW", "-transparency", "NO",
+						"-imagequality", "80", "-burstfiletype", "PDF", out.getPath());
+			}
+		});
+		assertTrue(out.isFile(), "PDF written although the native library is missing");
+		try {
+			withJarFolder(noLibrary, new Task() {
+				public void run() throws Exception {
+					cli(in.getPath(), "-burstfiletype", "PNG", "-ob", new File(out.getParentFile(), "p*").getPath());
+				}
+			});
+			throw new AssertionError("-burstfiletype PNG accepted without the native library");
+		} catch (DocumentException expected) {
+			assertTrue(expected.getMessage().contains("does not exist"), "missing library reported: " + expected.getMessage());
+		}
+	}
+
+	static void main_jarManifestNamesTheLibrariesAndAllowsNativeAccess(File dir) throws Exception {
+		JarFile jar = new JarFile("jpdftweak.jar");
+		Attributes manifest;
+		try {
+			manifest = jar.getManifest().getMainAttributes();
+		} finally {
+			jar.close();
+		}
+		assertEquals("ALL-UNNAMED", manifest.getValue("Enable-Native-Access"), "Enable-Native-Access");
+		List<String> files = Arrays.asList(new File("lib").list());
+		for (String entry : manifest.getValue("Class-Path").split(" ")) {
+			assertTrue(entry.startsWith("lib/") && files.contains(entry.substring(4)),
+					"Class-Path entry " + entry + " names a file in lib/ with the same case");
+		}
+	}
+
+	static void nolib_unloadableLibraryIsReportedAsAnError(File dir) throws Exception {
+		final File in = fixture(dir, "in.pdf", 1);
+		final File out = new File(dir, "p*.png");
+		String err = captureErr(new Task() {
+			public void run() throws Exception {
+				withJarFolder(nativesDir(), new Task() {
+					public void run() throws Exception {
+						try {
+							cli(in.getPath(), "-burstfiletype", "PNG", "-ob", out.getPath());
+							throw new AssertionError("export succeeded with an unloadable library");
+						} catch (IOException expected) {
+							assertTrue(expected.getMessage().contains("could not be loaded"),
+									"unloadable library reported: " + expected.getMessage());
+						}
+					}
+				});
+			}
+		});
+		assertTrue(!err.contains("Could not change Java Library Path"), "no library path error printed: " + err);
+	}
+
+	static void main_bookmarkOptionsKeepTheirOrder(File dir) throws Exception {
+		// B="1" A="2", with the quotes escaped as in a bookmark file. A HashMap
+		// iterates "A" before "B", the opposite of this line.
+		String line = "1;O;Chapter;1;B=\\221\\22 A=\\222\\22";
+		assertEquals(line, PdfBookmark.parseBookmark(line).toString(), "bookmark line round trip");
+		File in = fixture(dir, "in.pdf", 1);
+		File out = new File(dir, "out.pdf");
+		cli(in.getPath(), "-bookmark", line, out.getPath());
+		PdfReader reader = new PdfReader(out.getPath());
+		try {
+			List<HashMap<String, Object>> outline = SimpleBookmark.getBookmark(reader);
+			assertTrue(outline != null && outline.size() == 1, "one bookmark written");
+			assertEquals("Chapter", outline.get(0).get("Title"), "bookmark title");
+		} finally {
+			reader.close();
+		}
+	}
+
+	static void main_infoOmitsAnEmptyPageLabelPrefix(File dir) throws Exception {
+		File plain = fixture(dir, "plain.pdf", 2);
+		File in = new File(dir, "in.pdf");
+		PdfReader reader = new PdfReader(plain.getPath());
+		PdfStamper stamper = new PdfStamper(reader, new FileOutputStream(in));
+		PdfDictionary label = new PdfDictionary();
+		label.put(PdfName.S, PdfName.D);
+		label.put(PdfName.P, new PdfString(""));
+		PdfArray nums = new PdfArray();
+		nums.add(new PdfNumber(0));
+		nums.add(label);
+		PdfDictionary labels = new PdfDictionary();
+		labels.put(PdfName.NUMS, nums);
+		reader.getCatalog().put(PdfName.PAGELABELS, labels);
+		stamper.close();
+		File info = new File(dir, "info.txt");
+		cli(in.getPath(), "-info", info.getPath());
+		String text = new String(Files.readAllBytes(info.toPath()), "UTF-8");
+		assertTrue(text.contains("PAGELABELS 1=1"), "page label without prefix in " + text);
+	}
+
+	static void main_rotateAcceptsEveryDocumentedSpelling(File dir) throws Exception {
+		File in = fixture(dir, "in.pdf", 1);
+		String[] options = { "-rot", "-rotate", "-rotexp", "-rotateexp", "-rotexplicitly", "-rotateexplicitly" };
+		for (String option : options) {
+			File out = new File(dir, option.substring(1) + ".pdf");
+			cli(in.getPath(), option, "R", out.getPath());
+			assertTrue(out.isFile(), option + " accepted");
+			PdfReader reader = new PdfReader(out.getPath());
+			try {
+				Rectangle size = reader.getPageSizeWithRotation(1);
+				assertEquals(option.contains("exp") ? 0 : 90, reader.getPageRotation(1), option + " /Rotate");
+				assertTrue(size.getWidth() > size.getHeight(), option + " turns the portrait page to landscape");
+			} finally {
+				reader.close();
+			}
+		}
+	}
+
+	static void main_rotationSurvivesLaterStepsOnOnePage(File dir) throws Exception {
+		// Each of these removes the /Rotate entry that -rot sets, keeping the appearance.
+		File in = fixture(dir, "in.pdf", 1);
+		String[][] steps = { { "-rotexp", "R" }, { "-rot", "R", "-shuffle", "1:!+1N1+0%+0%" },
+				{ "-rot", "R", "--", "-rotexp", "K" } };
+		for (int i = 0; i < steps.length; i++) {
+			File out = new File(dir, "out" + i + ".pdf");
+			String[] args = new String[steps[i].length + 2];
+			args[0] = in.getPath();
+			System.arraycopy(steps[i], 0, args, 1, steps[i].length);
+			args[args.length - 1] = out.getPath();
+			cli(args);
+			PdfReader reader = new PdfReader(out.getPath());
+			try {
+				Rectangle size = reader.getPageSizeWithRotation(1);
+				String what = Arrays.toString(steps[i]);
+				assertEquals(0, reader.getPageRotation(1), what + " /Rotate");
+				assertTrue(size.getWidth() > size.getHeight(), what + " keeps the page turned to landscape");
+			} finally {
+				reader.close();
+			}
+		}
+	}
+
+	static void main_helpTextIsAccurate(File dir) throws Exception {
+		String tiff = help("-tiffcompression");
+		assertTrue(tiff.contains("LZW") && !tiff.contains("LWZ"), "-tiffcompression lists LZW: " + tiff);
+		String color = help("-colormode");
+		assertTrue(!color.contains("}]"), "-colormode has no stray bracket: " + color);
+		String encmode = help("-encmode");
+		assertTrue(encmode.contains(" -encmode {MODE}\n -encnometadata {MODE}\n    Set encryption mode."),
+				"-encmode lines are separate: " + encmode);
+		String permissions = help("-permissions");
+		assertTrue(permissions.contains(" -permissions {PERMISSION}"), "-permissions spelt as accepted: " + permissions);
+		String pagenumbers = help("-pagenumbers");
+		assertTrue(pagenumbers.contains("A page number format looks like this:"), "-pagenumbers describes page number formats: " + pagenumbers);
+		String output = help("-o");
+		assertTrue(output.contains("-oi"), "-o lists the multipage TIFF flag: " + output);
+		assertTrue(output.contains("remove"), "-o says that -om without -ou removes page marks: " + output);
+	}
+
+	static void main_viewerPreferenceDisplayDocumentTitle(File dir) throws Exception {
+		File in = fixture(dir, "in.pdf", 1);
+		// The corrected name, and the misspelt one that scripts may still use
+		for (String name : new String[] { "Display_document_title", "Display_document_tile" }) {
+			File out = new File(dir, name + ".pdf");
+			cli(in.getPath(), "-viewpref", name + "=true", out.getPath());
+			assertTrue(out.isFile(), name + " accepted");
+			PdfReader reader = new PdfReader(out.getPath());
+			try {
+				PdfDictionary prefs = reader.getCatalog().getAsDict(PdfName.VIEWERPREFERENCES);
+				assertTrue(prefs != null && prefs.getAsBoolean(PdfName.DISPLAYDOCTITLE).booleanValue(),
+						name + " sets /DisplayDocTitle");
+			} finally {
+				reader.close();
+			}
+		}
+	}
+
+	static void main_windowsLauncherWorksFromAnyFolder(File dir) throws Exception {
+		if (File.separatorChar != '\\')
+			return; // jpdftweak.cmd is for Windows only
+		File installed = new File(dir, "jpdftweak");
+		File lib = new File(installed, "lib");
+		lib.mkdirs();
+		Files.copy(new File("jpdftweak.cmd").toPath(), new File(installed, "jpdftweak.cmd").toPath());
+		Files.copy(new File("jpdftweak.jar").toPath(), new File(installed, "jpdftweak.jar").toPath());
+		for (File jar : new File("lib").listFiles()) {
+			if (jar.getName().endsWith(".jar"))
+				Files.copy(jar.toPath(), new File(lib, jar.getName()).toPath());
+		}
+		ProcessBuilder pb = new ProcessBuilder("cmd", "/c", new File(installed, "jpdftweak.cmd").getPath(), "-v");
+		pb.directory(dir);
+		pb.redirectErrorStream(true);
+		Process p = pb.start();
+		String output = new String(readAll(p.getInputStream()), "UTF-8");
+		p.waitFor();
+		assertTrue(output.contains("JPDF Tweak"), "launcher started from another folder printed the version: " + output);
+	}
+
+	static void main_moreInfoPageSizeRangesDoNotOverlap(File dir) throws Exception {
+		File in = OperationTests.pdf(dir, "in.pdf", PageSize.A4, PageSize.A4, OperationTests.LANDSCAPE_A4);
+		String info = OperationTests.info(dir, in, "-moreinfo");
+		assertTrue(info.contains("PAGESIZE 1-2 595.0x842.0") && info.contains("PAGESIZE 3-3 842.0x595.0"),
+				"one range per page size: " + info);
+	}
+
+	static void main_imageExportWritesBmpInEveryColourMode(File dir) throws Exception {
+		final File in = fixture(dir, "in.pdf", 1);
+		final File folder = dir;
+		withJarFolder(nativesDir(), new Task() {
+			public void run() throws Exception {
+				for (String mode : new String[] { "RGB", "GRAY", "BNW", "BNWI" })
+					cli(in.getPath(), "-burstfiletype", "BMP", "-colormode", mode, "-ob", new File(folder, mode + "-*.bmp").getPath());
+			}
+		});
+		for (String mode : new String[] { "RGB", "GRAY", "BNW", "BNWI" }) {
+			File bmp = new File(dir, mode + "-1.bmp");
+			assertTrue(bmp.isFile(), mode + " BMP written");
+			ByteBuffer header = ByteBuffer.wrap(Files.readAllBytes(bmp.toPath())).order(ByteOrder.LITTLE_ENDIAN);
+			assertTrue(header.get(0) == 'B' && header.get(1) == 'M', mode + " BMP signature");
+			assertEquals("595x842", header.getInt(18) + "x" + Math.abs(header.getInt(22)), mode + " BMP size");
+		}
+	}
+
+	static void main_imageExportReportsUnsupportedColourModes(File dir) throws Exception {
+		final File in = fixture(dir, "in.pdf", 1);
+		final File out = new File(dir, "p*.png");
+		withJarFolder(nativesDir(), new Task() {
+			public void run() throws Exception {
+				try {
+					cli(in.getPath(), "-burstfiletype", "PNG", "-colormode", "BNW", "-ob", out.getPath());
+					throw new AssertionError("PNG in black and white reported as written");
+				} catch (IOException expected) {
+					assertTrue(expected.getMessage().contains("Black and White"), "colour mode named: " + expected.getMessage());
+				}
+			}
+		});
+		assertTrue(!new File(dir, "p1.png").exists(), "no file written");
+	}
+
+	static void main_burstWithoutTransformations(File dir) throws Exception {
+		File in = fixture(dir, "in.pdf", 2);
+		cli(in.getPath(), "-ob", new File(dir, "b*.pdf").getPath());
+		for (int page = 1; page <= 2; page++) {
+			File part = new File(dir, "b" + page + ".pdf");
+			assertTrue(part.isFile(), part + " written");
+			assertEquals(1, pageCount(part), part + " page count");
+		}
+	}
+
+	static void main_backgroundFileIsClosedAfterUse(File dir) throws Exception {
+		File in = fixture(dir, "in.pdf", 1);
+		File background = fixture(dir, "background.pdf", 1);
+		cli(in.getPath(), "-background", background.getPath(), new File(dir, "out.pdf").getPath());
+		assertTrue(!isOpen(background), "background file closed");
+	}
+
+	// ---- helpers ----
+
+	/**
+	 * Whether this JVM still has file open: by the links in /proc/self/fd
+	 * where they exist, otherwise by renaming the file, which Windows refuses
+	 * for an open file.
+	 */
+	static boolean isOpen(File file) throws IOException {
+		File fds = new File("/proc/self/fd");
+		if (fds.isDirectory()) {
+			Path path = file.toPath().toRealPath();
+			for (File fd : fds.listFiles()) {
+				try {
+					if (Files.readSymbolicLink(fd.toPath()).equals(path))
+						return true;
+				} catch (IOException closedMeanwhile) {
+				}
+			}
+			return false;
+		}
+		File moved = new File(file.getPath() + ".moved");
+		if (!file.renameTo(moved))
+			return true;
+		if (!moved.renameTo(file))
+			throw new IOException("Cannot rename " + moved + " back");
+		return false;
+	}
+
+	static File fixture(File dir, String name, int pages) throws Exception {
+		return fixture(dir, name, pages, 0, 0);
+	}
+
+	/**
+	 * Creates an A4 fixture. If linkPage is not 0, that page gets an internal
+	 * link whose /Dest is the top-left corner of linkTarget.
+	 */
+	static File fixture(File dir, String name, int pages, int linkPage, int linkTarget) throws Exception {
+		File f = new File(dir, name);
+		Document document = new Document(PageSize.A4);
+		PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream(f));
+		document.open();
+		for (int i = 1; i <= pages; i++) {
+			if (i > 1)
+				document.newPage();
+			document.add(new Paragraph("Page " + i));
+			if (i == linkPage) {
+				PdfAnnotation link = new PdfAnnotation(writer, new Rectangle(50, 50, 150, 100));
+				link.put(PdfName.SUBTYPE, PdfName.LINK);
+				PdfDestination dest = new PdfDestination(PdfDestination.XYZ, 0, 842, 0);
+				dest.addPage(writer.getPageReference(linkTarget));
+				link.put(PdfName.DEST, dest);
+				writer.addAnnotation(link);
+			}
+		}
+		document.close();
+		return f;
+	}
+
+	/** The matrix of the first "cm" operator on page 1, as written. */
+	static String firstPlacement(File pdf) throws Exception {
+		PdfReader reader = new PdfReader(pdf.getPath());
+		try {
+			String content = new String(reader.getPageContent(1), "ISO-8859-1");
+			Matcher m = Pattern.compile("(\\S+ \\S+ \\S+ \\S+ \\S+ \\S+ cm)").matcher(content);
+			if (!m.find())
+				throw new AssertionError("No cm operator in " + content);
+			return m.group(1);
+		} finally {
+			reader.close();
+		}
+	}
+
+	/** The top coordinate of the /XYZ destination of the first link on page 1. */
+	static float linkDestinationTop(File pdf) throws Exception {
+		PdfReader reader = new PdfReader(pdf.getPath());
+		try {
+			PdfArray annots = reader.getPageN(1).getAsArray(PdfName.ANNOTS);
+			if (annots == null)
+				throw new AssertionError("Page 1 has no annotations");
+			return annots.getAsDict(0).getAsArray(PdfName.DEST).getAsNumber(3).floatValue();
+		} finally {
+			reader.close();
+		}
+	}
+
+	static void cli(String... args) throws Exception {
+		new CommandLineInterface(args);
+	}
+
+	static String help(final String option) throws Exception {
+		return captureOut(new Task() {
+			public void run() throws Exception {
+				cli("-help", option);
+			}
+		});
+	}
+
+	static File nativesDir() {
+		return new File(System.getProperty("jpdftweak.test.natives"));
+	}
+
+	/**
+	 * Runs task as if jpdftweak.jar were in folder, which is where PdfToImage
+	 * looks for MuPDF's shared library.
+	 */
+	static void withJarFolder(File folder, Task task) throws Exception {
+		String classPath = System.getProperty("java.class.path");
+		String libraryPath = System.getProperty("java.library.path");
+		System.setProperty("java.class.path", new File(folder, "jpdftweak.jar").getPath());
+		try {
+			task.run();
+		} finally {
+			System.setProperty("java.class.path", classPath);
+			System.setProperty("java.library.path", libraryPath);
+		}
+	}
+
+	static String captureErr(Task task) throws Exception {
+		PrintStream old = System.err;
+		ByteArrayOutputStream buf = new ByteArrayOutputStream();
+		System.setErr(new PrintStream(buf, true, "UTF-8"));
+		try {
+			task.run();
+		} finally {
+			System.setErr(old);
+		}
+		return buf.toString("UTF-8");
+	}
+
+	static String captureOut(Task task) throws Exception {
+		PrintStream old = System.out;
+		ByteArrayOutputStream buf = new ByteArrayOutputStream();
+		System.setOut(new PrintStream(buf, true, "UTF-8"));
+		try {
+			task.run();
+		} finally {
+			System.setOut(old);
+		}
+		return buf.toString("UTF-8");
+	}
+
+	static byte[] readAll(InputStream in) throws IOException {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		byte[] buffer = new byte[8192];
+		int n;
+		while ((n = in.read(buffer)) != -1)
+			out.write(buffer, 0, n);
+		return out.toByteArray();
+	}
+
+	static int pageCount(File pdf) throws Exception {
+		PdfReader reader = new PdfReader(pdf.getPath());
+		try {
+			return reader.getNumberOfPages();
+		} finally {
+			reader.close();
+		}
+	}
+
+	/** Counts the image file directories (pages) of a TIFF file. */
+	static int tiffPageCount(File tiff) throws Exception {
+		ByteBuffer b = ByteBuffer.wrap(Files.readAllBytes(tiff.toPath()));
+		b.order(b.get(0) == 'I' ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+		int count = 0;
+		for (int ifd = b.getInt(4); ifd != 0; ifd = b.getInt(ifd + 2 + 12 * (b.getShort(ifd) & 0xffff))) {
+			if (++count > 10000)
+				throw new AssertionError("IFD chain of " + tiff + " does not end");
+		}
+		return count;
+	}
+
+	static void assertTrue(boolean condition, String what) {
+		if (!condition)
+			throw new AssertionError(what);
+	}
+
+	static void assertEquals(Object expected, Object actual, String what) {
+		if (expected == null ? actual != null : !expected.equals(actual))
+			throw new AssertionError(what + ": expected <" + expected + "> but was <" + actual + ">");
+	}
+
+	static void deleteTree(File f) {
+		File[] children = f.listFiles();
+		if (children != null) {
+			for (File c : children)
+				deleteTree(c);
+		}
+		f.delete();
+	}
+}
