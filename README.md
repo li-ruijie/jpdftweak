@@ -72,7 +72,7 @@ Please send bug reports and suggestions to <schierlm@users.sourceforge.net>.
 
 ## ChangeLog
 
-### Unreleased - Version 1.2.0
+### 2026-10-22 - Version 1.2.0
 
 - Require Java 21 or newer
 - Update iText to 5.5.13.6, BouncyCastle to 1.86, and JGoodies Forms and Common to 1.9.0 and 1.8.1, which the build now downloads from Maven Central and checks against pinned checksums
