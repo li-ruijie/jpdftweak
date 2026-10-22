@@ -1,0 +1,80 @@
+THIRD-PARTY SOFTWARE
+====================
+
+jPDF Tweak is free software under the GNU Affero General Public License,
+version 3 or later (see LICENSE). Its release archives contain the
+following software by others, in the versions that build.xml names.
+
+iText 5 (lib/itextpdf-<version>.jar)
+  Copyright iText Group NV. Licensed under the GNU Affero General Public
+  License, version 3, with the additional permission stated in the jar's
+  com/itextpdf/text/LICENSE.txt. The jar's com/itextpdf/text/NOTICE.txt
+  credits the authors of code that iText builds on.
+
+BouncyCastle (lib/bcprov-jdk18on-<version>.jar,
+lib/bcpkix-jdk18on-<version>.jar, and lib/bcutil-jdk18on-<version>.jar)
+  Copyright The Legion of the Bouncy Castle Inc. Licensed under the MIT
+  License, whose text each jar holds in META-INF/LICENSE.md.
+
+JGoodies Forms and JGoodies Common (lib/jgoodies-forms-<version>.jar and
+lib/jgoodies-common-<version>.jar)
+  Copyright JGoodies Software GmbH. Licensed under the BSD license that
+  ends this file.
+
+MuPDF (lib/mupdf-<version>.jar, and the shared library mupdf_java64.dll
+or libmupdf_java64.so in the archives for Windows and Linux)
+  Copyright Artifex Software, Inc. Licensed under the GNU Affero General
+  Public License, version 3 (licenses/mupdf/COPYING). The shared library
+  contains the libraries that MuPDF builds in, whose licences are in
+  licenses/mupdf/thirdparty/. The Windows library uses the FreeType code,
+  copyright The FreeType Project (https://freetype.org). This software
+  is based in part on the work of the Independent JPEG Group. On Linux,
+  the library uses the system's FreeType, OpenSSL, and zlib, which the
+  archives do not contain.
+
+
+SOURCE CODE
+-----------
+
+Each release at https://github.com/li-ruijie/jpdftweak/releases carries
+the Corresponding Source of the software above that is licensed under
+the GNU Affero General Public License:
+
+- jPDF Tweak: the release's "Source code" archives
+- MuPDF: mupdf-<version>-source.tar.gz, from which "ant mupdf-jar
+  natives" builds the jar and the shared library
+- iText: itextpdf-<version>-sources.jar
+
+
+JGOODIES LICENSE
+----------------
+
+JGoodies Forms: Copyright (c) 2002-2015 JGoodies Software GmbH.
+JGoodies Common: Copyright (c) 2009-2014 JGoodies Software GmbH.
+All Rights Reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+ o Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+
+ o Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+ o Neither the name of JGoodies Software GmbH nor the names of
+   its contributors may be used to endorse or promote products derived
+   from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

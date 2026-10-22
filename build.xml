@@ -7,6 +7,7 @@
 	-->
 	<property name="ITEXT_VERSION" value="5.5.13.6" />
 	<property name="ITEXT_SHA256" value="c2b290659fd4381e5512cc9e69c67b409150b84921dc367b1ec983c376ca18f6" />
+	<property name="ITEXT_SOURCES_SHA256" value="2bf896330b9447a6d7dd7cd4805c8e4dce08b9af83017463fb811ac190b334f3" />
 	<property name="BC_VERSION" value="1.86" />
 	<property name="BCPROV_SHA256" value="2af190b300cbb0b35e248ccf5f4a06b6072030aeb3da7a98ec73abe5b4cb371f" />
 	<property name="BCPKIX_SHA256" value="8d8b41a4b149bdae8d331f059a578870954d1e3ff29f8269a9eb3ee19a7e4ef7" />
@@ -110,6 +111,31 @@
 			<compilerarg value="-Xlint:-removal" />
 		</javac>
 		<jar destfile="${MUPDF}" basedir="build/mupdf-classes" />
+	</target>
+
+	<!-- The source of the AGPL libraries in a release, which the release workflow attaches to it -->
+	<target name="sources">
+		<mkdir dir="build" />
+		<download file="${MUPDF_TARBALL}" url="${MUPDF_URL}" sha256="${MUPDF_SHA256}" />
+		<download file="build/itextpdf-${ITEXT_VERSION}-sources.jar" sha256="${ITEXT_SOURCES_SHA256}"
+			url="${MAVEN}/com/itextpdf/itextpdf/${ITEXT_VERSION}/itextpdf-${ITEXT_VERSION}-sources.jar" />
+	</target>
+
+	<!-- The licences of MuPDF and of the libraries it builds in, for the release archives (see THIRD-PARTY.txt) -->
+	<target name="licenses">
+		<antcall target="mupdf-source" />
+		<delete dir="build/licenses" />
+		<copy todir="build/licenses/mupdf">
+			<fileset dir="${MUPDF_SOURCE}">
+				<include name="COPYING" />
+				<include name="thirdparty/*/LICENSE*" />
+				<include name="thirdparty/*/COPYING*" />
+				<include name="thirdparty/*/*-license.txt" />
+				<include name="thirdparty/freetype/docs/FTL.TXT" />
+				<!-- The Independent JPEG Group's terms -->
+				<include name="thirdparty/libjpeg/README" />
+			</fileset>
+		</copy>
 	</target>
 
 	<target name="compile" depends="deps, mupdf-jar">

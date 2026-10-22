@@ -1,6 +1,7 @@
 # Release workflow: on a version tag, builds and tests jPDF Tweak on every
 # platform (through build.yml), then publishes one archive per platform with
-# MuPDF's library, and one without it. Every action is pinned to a full commit
+# MuPDF's library, one without it, and the source of the AGPL libraries that
+# the archives contain in binary form. Every action is pinned to a full commit
 # SHA. The trailing comment carries the version tag so that Dependabot can
 # propose the bump.
 name: Release
@@ -62,7 +63,7 @@ jobs:
           version="${TAG#v}"
           # The Java classes are the same on every platform
           cp natives/natives-linux-x64/lib/mupdf-*.jar lib/
-          ant -noinput jar
+          ant -noinput jar sources licenses
           reported="$(java -jar jpdftweak.jar -v)"
           if [ "$reported" != "JPDF Tweak $version" ]; then
             echo "::error::The tag is $TAG but the jar reports '$reported'"
@@ -72,8 +73,8 @@ jobs:
           for platform in none windows-x64 linux-x64 linux-arm64; do
             dir="stage/$platform/jpdftweak-$version"
             mkdir -p "$dir/lib"
-            cp jpdftweak.jar jpdftweak.cmd LICENSE README.md icon.ico "$dir/"
-            cp -r icons manual "$dir/"
+            cp jpdftweak.jar jpdftweak.cmd LICENSE THIRD-PARTY.txt README.md icon.ico "$dir/"
+            cp -r icons manual build/licenses "$dir/"
             cp lib/*.jar lib/README.txt "$dir/lib/"
             if [ "$platform" = none ]; then
               name="jpdftweak-$version"
@@ -83,10 +84,20 @@ jobs:
             fi
             (cd "stage/$platform" && zip -qr "../../dist/$name.zip" "jpdftweak-$version")
           done
+          # The Corresponding Source of the AGPL libraries, as the archives contain them in binary form
+          cp build/mupdf-*-source.tar.gz build/itextpdf-*-sources.jar dist/
+          mupdf_source="$(basename build/mupdf-*-source.tar.gz)"
+          itext_source="$(basename build/itextpdf-*-sources.jar)"
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          Each archive holds jPDF Tweak and the Java libraries it needs. The archives named after a platform also hold MuPDF's shared library for that platform, which exporting pages as images needs.
+
+          jPDF Tweak, iText, and MuPDF are licensed under the GNU Affero General Public License, and their Corresponding Source is attached to this release. The source of jPDF Tweak is in the "Source code" archives, MuPDF's is in $mupdf_source, and iText's is in $itext_source. THIRD-PARTY.txt in each archive lists every library with its licence.
+          EOF
           ls -l dist
 
       - name: Publish the GitHub release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: dist/*
+          body_path: ${{ runner.temp }}/notes.md
           generate_release_notes: true

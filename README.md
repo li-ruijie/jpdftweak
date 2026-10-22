@@ -64,6 +64,8 @@ ant test     # builds both and runs the tests
 
 jPDF Tweak is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. See LICENSE.
 
+The release archives also contain libraries by others, which THIRD-PARTY.txt lists with their licences. Each release carries the source of those under the GNU Affero General Public License.
+
 ## Contact
 
 Please send bug reports and suggestions to <schierlm@users.sourceforge.net>.
