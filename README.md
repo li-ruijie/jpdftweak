@@ -56,7 +56,7 @@ ant natives  # builds MuPDF's shared library for this platform into build/native
 ant test     # builds both and runs the tests
 ```
 
-`build.xml` pins the version and SHA-256 checksum of every library it downloads.
+`build.xml` pins the version and SHA-256 checksum of every library it downloads. Every week, a GitHub Actions workflow (`.github/workflows/upstream.yml`) moves the pins to upstream's newest releases and commits the change once the tests pass on every platform, or opens an issue if they fail.
 
 `ant natives` needs Visual Studio 2022 or newer, or its Build Tools, on Windows. On other systems it needs make, a C compiler, pkg-config, and the FreeType, OpenSSL, and zlib development files. The GUI test needs a display. On Linux without one, run `xvfb-run ant test`.
 

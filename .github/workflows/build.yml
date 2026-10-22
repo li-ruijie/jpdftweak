@@ -1,6 +1,7 @@
 # Builds MuPDF's Java binding for each platform, then builds jPDF Tweak and runs
 # its tests on each platform and supported Java version. The release workflow
-# calls this workflow and packages what it uploads. Every action is pinned to a
+# calls this workflow and packages what it uploads, and the upstream workflow
+# calls it to test an update of the pinned libraries. Every action is pinned to a
 # full commit SHA, with the version tag in a trailing comment for Dependabot.
 name: Build
 
@@ -10,6 +11,11 @@ on:
       - main
   pull_request:
   workflow_call:
+    inputs:
+      ref:
+        description: The commit to build and test, when not the one that started the calling workflow
+        type: string
+        default: ""
 
 # Deny everything at the top. Each job grants only what it needs.
 permissions: {}
@@ -38,6 +44,7 @@ jobs:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.ref }}
           persist-credentials: false
 
       - name: Set up Java
@@ -94,6 +101,7 @@ jobs:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.ref }}
           persist-credentials: false
 
       - name: Set up Java

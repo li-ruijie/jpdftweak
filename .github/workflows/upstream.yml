@@ -1,0 +1,103 @@
+# Weekly, moves the libraries pinned in build.xml to upstream's newest releases
+# (.github/upstream.sh). An update is committed to the upstream-update branch,
+# built and tested on every platform by build.yml, and fast-forwarded onto main
+# when every test passes. A failure opens an issue, or comments on the open one,
+# and main keeps its pins. Every action is pinned to a full commit SHA, with the
+# version tag in a trailing comment for Dependabot.
+name: Upstream
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+# Deny everything at the top. Each job grants only what it needs.
+permissions: {}
+
+concurrency:
+  group: upstream
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Look for newer libraries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Move the pins and commit them to the upstream-update branch
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/upstream.sh > "$RUNNER_TEMP/updates"
+          if [ ! -s "$RUNNER_TEMP/updates" ]; then
+            echo "Every library is at upstream's newest release."
+            exit 0
+          fi
+          cat "$RUNNER_TEMP/updates"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          { echo "build: update the pinned libraries"; echo; cat "$RUNNER_TEMP/updates"; } > "$RUNNER_TEMP/message"
+          git commit -q -a -F "$RUNNER_TEMP/message"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/upstream-update
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Test the update
+    needs: update
+    if: needs.update.outputs.sha != ''
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ needs.update.outputs.sha }}
+
+  merge:
+    name: Fast-forward main
+    needs: [update, test]
+    # A run started by hand on another branch tests an update without merging it
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # force=false makes GitHub refuse anything but a fast-forward, so a push to main meanwhile wins
+      - name: Fast-forward main and delete the branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.update.outputs.sha }}
+        run: |
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/main" -f sha="$SHA" -F force=false
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/upstream-update"
+
+  report:
+    name: Report the failure
+    needs: [update, test, merge]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open an issue, or comment on the open one
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Automatic library update failed"
+          body="The weekly update of the pinned libraries failed in $RUN_URL. The pins in build.xml on main stay as they were. The update is on the upstream-update branch if the build or the tests failed."
+          number="$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
