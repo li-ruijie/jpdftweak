@@ -2,7 +2,7 @@
 
 > **Note:** This repository started as a mirror of https://sourceforge.net/projects/jpdftweak/ and adds bug fixes, current libraries, and automated builds to version 1.1.
 
-This program requires Java 21 or higher, for example from https://adoptium.net/.
+Download the archive for your system from https://github.com/li-ruijie/jpdftweak/releases and unpack it. This program requires Java 21 or higher, for example from https://adoptium.net/.
 
 Start it by double clicking the jar file, or by:
 
@@ -14,7 +14,7 @@ For the command line options, add `-help` to the command line above.
 
 The "burst in image file type" and "export in Tiff multipage" features use MuPDF, whose shared library must be in the same folder as jpdftweak.jar. The release archives for Windows x64, Linux x64, and Linux arm64 include it. On other systems these two features are not available. For more details please read the section "Burst as Image / Export Multipage Tiff Features" below.
 
-See the `manual` folder for short manual.
+See the `manual` folder for a short manual.
 
 ## Java Memory Limit
 
@@ -68,7 +68,7 @@ The release archives also contain libraries by others, which THIRD-PARTY.txt lis
 
 ## Contact
 
-Please send bug reports and suggestions to <schierlm@users.sourceforge.net>.
+Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/issues. Michael Schierl (<schierlm@users.sourceforge.net>) wrote jPDF Tweak up to version 1.1.
 
 ## ChangeLog
 
