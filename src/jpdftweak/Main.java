@@ -34,8 +34,8 @@ public class Main {
 					JDialog exceptionDialog = new JDialog((Frame)null, "An unexpected error occurred while running jPDF Tweak.");
 					StringWriter sw = new StringWriter();
 					PrintWriter pw = new PrintWriter(sw);
-					pw.write("Please send this error report to <schierlm@users.sourceforge.net>.\n" +
-							"Try to provide specific information about when this error occured.\n\n" +
+					pw.write("Please report this error at https://github.com/li-ruijie/jpdftweak/issues.\n" +
+							"Try to provide specific information about when this error occurred.\n\n" +
 							"jPDF Tweak version: " + VERSION + "\n" +
 							"Java version: " + System.getProperty("java.version") + " (" + System.getProperty("java.vendor")+")\n" +
 						    "Operating System: " + System.getProperty("os.name") + " (" + System.getProperty("os.version") + ", " +	System.getProperty("os.arch")+")\n\n");

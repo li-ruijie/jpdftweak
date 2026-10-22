@@ -72,6 +72,10 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 
 ## ChangeLog
 
+### Unreleased
+
+- Ask for error reports at the GitHub issue tracker in the error dialog, instead of at the original author's address
+
 ### 2026-10-22 - Version 1.2.0
 
 - Require Java 21 or newer
