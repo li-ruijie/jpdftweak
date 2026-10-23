@@ -34,8 +34,12 @@ import jpdftweak.cli.CommandLineInterface;
 import jpdftweak.core.PdfBookmark;
 import jpdftweak.core.PdfInputFile;
 import jpdftweak.core.PdfToImage;
+import jpdftweak.core.PdfTweak;
 import jpdftweak.gui.MainForm;
+import jpdftweak.gui.TableComponent;
+import jpdftweak.gui.tabs.BookmarkTab;
 import jpdftweak.gui.tabs.EncryptSignTab;
+import jpdftweak.gui.tabs.InteractionTab;
 import jpdftweak.gui.tabs.OutputTab;
 
 import com.itextpdf.text.Document;
@@ -430,6 +434,65 @@ public class RegressionTests {
 		// AES-256 is not in the list, so the mode stays as it was. It keeps only
 		// hashes of the passwords, so the user password cannot be recovered.
 		assertEquals("0 false owner  [Copy, ScreenReaders]", loaded[1], "AES-256");
+	}
+
+	/**
+	 * Bad input in the transitions table or in a bookmark file threw a
+	 * RuntimeException, which showed the dialog for unexpected errors
+	 * instead of saying what was wrong. A failed export emptied the file.
+	 */
+	static void gui_badTablesAndBookmarkFilesAreReported(File dir) throws Exception {
+		final File in = fixture(dir, "in.pdf", 3);
+		final File badCsv = OperationTests.write(new File(dir, "bad.csv"), "1;;Title;1\nnot a bookmark\n");
+		final File existing = OperationTests.write(new File(dir, "existing.csv"), "1;;Kept;1\n");
+		final List<String> messages = new ArrayList<String>();
+		SwingUtilities.invokeAndWait(new Runnable() {
+			public void run() {
+				try {
+					InteractionTab interaction = new InteractionTab(null);
+					((JCheckBox) field(interaction, "addTransitions")).setSelected(true);
+					TableComponent transitions = (TableComponent) field(interaction, "transitions");
+					Object[][] rows = { { 1, null, "None", 0, -1 }, { 1, -1, "Bogus", 0, -1 }, { -5, -1, "None", 0, -1 } };
+					for (Object[] row : rows) {
+						transitions.clear();
+						transitions.addRow(row);
+						PdfTweak tweak = new PdfTweak(new PdfInputFile(in, ""), false);
+						try {
+							interaction.run(tweak);
+							messages.add("accepted");
+						} catch (IOException ex) {
+							messages.add(ex.getMessage());
+						} finally {
+							tweak.cleanup();
+						}
+					}
+					BookmarkTab bookmarks = new BookmarkTab(null);
+					Method read = BookmarkTab.class.getDeclaredMethod("readCSV", File.class);
+					read.setAccessible(true);
+					try {
+						read.invoke(bookmarks, badCsv);
+						messages.add("accepted");
+					} catch (InvocationTargetException ex) {
+						messages.add(ex.getCause().getClass().getSimpleName() + ": " + ex.getCause().getMessage());
+					}
+					TableComponent table = (TableComponent) field(bookmarks, "bookmarks");
+					table.addRow(1, false, "Title", 1, "", false, false, "foo");
+					Method write = BookmarkTab.class.getDeclaredMethod("writeCSV", File.class);
+					write.setAccessible(true);
+					try {
+						write.invoke(bookmarks, existing);
+						messages.add("accepted");
+					} catch (InvocationTargetException ex) {
+						messages.add(ex.getCause().getClass().getSimpleName() + ": " + ex.getCause().getMessage());
+					}
+				} catch (Exception ex) {
+					throw new RuntimeException(ex);
+				}
+			}
+		});
+		assertEquals("[Please fill in every cell of the transitions table., Unknown transition: Bogus, Page -5 does not exist., "
+				+ "IOException: Cannot parse bookmark, IOException: Invalid option (no equals sign): foo]", messages.toString(), "messages");
+		assertEquals("1;;Kept;1\n", OperationTests.read(existing), "file kept after a failed export");
 	}
 
 	/** A folder with an empty file of the library's name, which is all the Output tab checks for. */

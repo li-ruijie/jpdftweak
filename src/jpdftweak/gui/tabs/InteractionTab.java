@@ -104,17 +104,21 @@ public class InteractionTab extends Tab {
 		if (addTransitions.isSelected()) {
 			for (int i = 0; i < transitions.getRowCount(); i++) {
 				Object[] row = transitions.getRow(i);
+				for (Object cell : row) {
+					if (cell == null) throw new IOException("Please fill in every cell of the transitions table.");
+				}
 				int from = (Integer)row[0];
 				int to = (Integer)row[1];
 				String transition = (String)row[2];
 				int trans = Arrays.asList(PdfTweak.TRANSITION_NAMES).indexOf(transition);
-				if (trans==-1) throw new RuntimeException();
+				if (trans==-1) throw new IOException("Unknown transition: " + transition);
 				int duration = (Integer)row[3];
 				int pdur = (Integer)row[4];
 				if (from<0) from +=tweak.getPageCount()+1;
 				if (to<0) to += tweak.getPageCount()+1;
 				if (from > tweak.getPageCount())
 					continue;
+				if (from < 1) throw new IOException("Page " + row[0] + " does not exist.");
 				if (to > tweak.getPageCount())
 					to = tweak.getPageCount();
 				for (int j = from; j <= to; j++) {

@@ -110,14 +110,7 @@ public class BookmarkTab extends Tab {
 
 	protected void importCSV(File selectedFile) {
 		try {
-			BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(selectedFile), "UTF-8"));
-			String line;
-			List<PdfBookmark> bmks = new ArrayList<PdfBookmark>();
-			while ((line = r.readLine()) != null) {
-				if (line.startsWith("#")) continue;
-				bmks.add(PdfBookmark.parseBookmark(line));
-			}
-			r.close();
+			List<PdfBookmark> bmks = readCSV(selectedFile);
 			bookmarks.clear();
 			appendBookmarks(bmks);
 		} catch (IOException ex) {
@@ -126,19 +119,57 @@ public class BookmarkTab extends Tab {
 		}
 	}
 
+	/** Reads the bookmarks of a CSV file, failing with an IOException on a line it cannot parse. */
+	private List<PdfBookmark> readCSV(File file) throws IOException {
+		BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+		try {
+			String line;
+			List<PdfBookmark> bmks = new ArrayList<PdfBookmark>();
+			while ((line = r.readLine()) != null) {
+				if (line.startsWith("#")) continue;
+				try {
+					bmks.add(PdfBookmark.parseBookmark(line));
+				} catch (RuntimeException ex) {
+					throw new IOException(ex.getMessage(), ex);
+				}
+			}
+			return bmks;
+		} finally {
+			r.close();
+		}
+	}
+
 	protected void exportCSV(File selectedFile) {
 		try {
-			BufferedWriter w = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(selectedFile), "UTF-8"));
-			for (int i = 0; i < bookmarks.getRowCount(); i++) {
-				PdfBookmark b = getBookmark(bookmarks.getRow(i));
-				w.write(b.toString());
-				w.newLine();
-			}
-			w.close();
+			writeCSV(selectedFile);
 		} catch (IOException ex) {
 			ex.printStackTrace();
 			JOptionPane.showMessageDialog(mainForm, ex.getMessage(), "Error reading file", JOptionPane.ERROR_MESSAGE);
 		}	
+	}
+
+	/**
+	 * Writes the bookmarks to a CSV file. It makes every line first, so that
+	 * a bookmark it cannot write leaves the file as it was.
+	 */
+	private void writeCSV(File file) throws IOException {
+		List<String> lines = new ArrayList<String>();
+		for (int i = 0; i < bookmarks.getRowCount(); i++) {
+			try {
+				lines.add(getBookmark(bookmarks.getRow(i)).toString());
+			} catch (RuntimeException ex) {
+				throw new IOException(ex.getMessage(), ex);
+			}
+		}
+		BufferedWriter w = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), "UTF-8"));
+		try {
+			for (String line : lines) {
+				w.write(line);
+				w.newLine();
+			}
+		} finally {
+			w.close();
+		}
 	}
 
 	protected void appendBookmarks(List<PdfBookmark> bm) {
