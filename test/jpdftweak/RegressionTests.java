@@ -39,6 +39,7 @@ import com.itextpdf.text.DocumentException;
 import com.itextpdf.text.PageSize;
 import com.itextpdf.text.Paragraph;
 import com.itextpdf.text.Rectangle;
+import com.itextpdf.text.pdf.PdfAction;
 import com.itextpdf.text.pdf.PdfAnnotation;
 import com.itextpdf.text.pdf.PdfArray;
 import com.itextpdf.text.pdf.PdfDestination;
@@ -396,6 +397,42 @@ public class RegressionTests {
 		File out = new File(dir, "out.pdf");
 		cli(in.getPath(), "-preserveLinks", "On", "-scale", "1190,1684", out.getPath());
 		assertEquals("[2 /XYZ null null null]", OperationTests.linkDestinations(out, 1), "link destination");
+	}
+
+	/** With -preserveLinks, a background added the external links of the page again, which PdfStamper refuses. */
+	static void main_backgroundKeepsTheLinksOfThePage(File dir) throws Exception {
+		File in = new File(dir, "in.pdf");
+		Document document = new Document(PageSize.A4);
+		PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream(in));
+		document.open();
+		document.add(new Paragraph("Page 1"));
+		writer.addAnnotation(PdfAnnotation.createLink(writer, new Rectangle(50, 50, 150, 100), PdfAnnotation.HIGHLIGHT_INVERT,
+				new PdfAction("https://example.com/")));
+		PdfAnnotation internal = new PdfAnnotation(writer, new Rectangle(50, 150, 150, 200));
+		internal.put(PdfName.SUBTYPE, PdfName.LINK);
+		PdfDestination dest = new PdfDestination(PdfDestination.XYZ, 0, 842, 0);
+		dest.addPage(writer.getPageReference(1));
+		internal.put(PdfName.DEST, dest);
+		writer.addAnnotation(internal);
+		document.close();
+		File background = OperationTests.pdfWithText(dir, "background.pdf", "Background");
+		File out = new File(dir, "out.pdf");
+		cli(in.getPath(), "-preserveLinks", "On", "-background", background.getPath(), out.getPath());
+		PdfReader reader = new PdfReader(out.getPath());
+		try {
+			PdfArray annots = reader.getPageN(1).getAsArray(PdfName.ANNOTS);
+			List<String> links = new ArrayList<String>();
+			for (int i = 0; annots != null && i < annots.size(); i++) {
+				PdfDictionary link = annots.getAsDict(i);
+				PdfDictionary action = link.getAsDict(PdfName.A);
+				links.add(link.getAsArray(PdfName.RECT) + " " + (action != null ? action.get(PdfName.URI)
+						: OperationTests.destination(reader, link.getAsArray(PdfName.DEST))));
+			}
+			assertEquals("[[50, 50, 150, 100] https://example.com/, [50, 150, 150, 200] 1 /XYZ 0 842 0]", links.toString(), "links");
+		} finally {
+			reader.close();
+		}
+		assertTrue(OperationTests.text(out, 1).contains("Background"), "background drawn");
 	}
 
 	static void main_imageOptionsOnlyNeedTheLibraryForImageOutput(File dir) throws Exception {

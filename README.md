@@ -72,6 +72,10 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 
 ## ChangeLog
 
+### Unreleased
+
+- Fix the crash of a background watermark with -preserveLinks on a page with an external link
+
 ### 2026-10-24 - Version 1.3.0
 
 - Keep bookmarks, named destinations, attachments, viewer settings, the open action, the language, and layers when cropping, scaling, rotating explicitly, and shuffling, with destinations moved to the first page that shows their target, and keep page labels except when shuffling

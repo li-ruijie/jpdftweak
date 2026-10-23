@@ -26,7 +26,6 @@ import com.itextpdf.text.pdf.BaseFont;
 import com.itextpdf.text.pdf.PRAcroForm;
 import com.itextpdf.text.pdf.PRIndirectReference;
 import com.itextpdf.text.pdf.PRStream;
-import com.itextpdf.text.pdf.PdfAnnotation;
 import com.itextpdf.text.pdf.PdfContentByte;
 import com.itextpdf.text.pdf.PdfDictionary;
 import com.itextpdf.text.pdf.PdfGState;
@@ -846,16 +845,6 @@ public class PdfTweak {
 			if (wmTemplate != null) {
 				PdfContentByte underContent = stamper.getUnderContent(i);
 				underContent.addTemplate(wmTemplate, 0, 0);
-				if (preserveHyperlinks) {
-					List links = currentReader.getLinks(i);
-					PdfWriter w = underContent.getPdfWriter();
-					for (int j = 0; j < links.size(); j++) {
-						PdfAnnotation.PdfImportedLink link = (PdfAnnotation.PdfImportedLink) links.get(j);
-						if (link.isInternal()) 
-							continue; // preserving internal links would be pointless here
-						w.addAnnotation(link.createAnnotation(w));
-					}
-				}
 			}
 			PdfContentByte overContent = stamper.getOverContent(i);
 			Rectangle size = currentReader.getPageSizeWithRotation(i);
