@@ -341,6 +341,35 @@ public class RegressionTests {
 		assertEquals(false, enabled[4], "quality for a burst TIFF after choosing LZW");
 	}
 
+	/** DEFLATE, like ZLIB, takes the quality as its compression level. */
+	static void gui_outputTabOffersQualityForTiffDeflate(File dir) throws Exception {
+		final boolean[] enabled = new boolean[2];
+		withJarFolder(libraryStandIn(dir), new Task() {
+			public void run() throws Exception {
+				SwingUtilities.invokeAndWait(new Runnable() {
+					public void run() {
+						try {
+							OutputTab tab = new OutputTab(null);
+							JCheckBox multipageTiff = (JCheckBox) field(tab, "multipageTiff");
+							JSlider qualitySlider = (JSlider) field(tab, "qualitySlider");
+							JComboBox compressionType = (JComboBox) field(tab, "compressionType");
+							multipageTiff.doClick();
+							compressionType.setSelectedItem(PdfToImage.TiffCompression.DEFLATE);
+							enabled[0] = qualitySlider.isEnabled();
+							multipageTiff.doClick();
+							multipageTiff.doClick();
+							enabled[1] = qualitySlider.isEnabled();
+						} catch (Exception ex) {
+							throw new RuntimeException(ex);
+						}
+					}
+				});
+			}
+		});
+		assertEquals(true, enabled[0], "quality after choosing DEFLATE");
+		assertEquals(true, enabled[1], "quality for a multipage TIFF chosen again with DEFLATE");
+	}
+
 	/** A folder with an empty file of the library's name, which is all the Output tab checks for. */
 	static File libraryStandIn(File dir) throws IOException {
 		File natives = new File(dir, "natives");

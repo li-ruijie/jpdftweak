@@ -316,7 +316,8 @@ public class OutputTab extends Tab {
 	/** Whether the chosen TIFF compression uses the quality. */
 	private boolean tiffQuality() {
 		Object selected = compressionType.getSelectedItem();
-		return selected == PdfToImage.TiffCompression.JPEG || selected == PdfToImage.TiffCompression.ZLIB;
+		return selected == PdfToImage.TiffCompression.JPEG || selected == PdfToImage.TiffCompression.ZLIB
+				|| selected == PdfToImage.TiffCompression.DEFLATE;
 	}
 
 	private boolean matchTransparency(boolean transparency) {

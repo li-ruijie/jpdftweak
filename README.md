@@ -75,6 +75,7 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 ### Unreleased
 
 - Keep the quality slider enabled in the Output tab when switching to TIFF output with JPEG or ZLIB compression selected
+- Enable the quality slider in the Output tab for TIFF DEFLATE compression, which uses it as the compression level like ZLIB
 
 ### 2026-10-23 - Version 1.2.1
 
