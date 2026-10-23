@@ -252,6 +252,14 @@ public class OperationTests {
 				+ "labels: null\nhidden layer shared: true\n", catalogSummary(odd), "after -shuffle leaving out page 2");
 	}
 
+	/** Setting page labels changes nothing else in the catalog. */
+	static void main_pageLabelsKeepTheCatalog(File dir) throws Exception {
+		File in = catalogFixture(dir);
+		File labelled = new File(dir, "labelled.pdf");
+		cli(in.getPath(), "-pagenumbers", "1=1A", labelled.getPath());
+		assertEquals(catalogSummary(in).replace("labels: [i, ii, iii]", "labels: [A, B, C]"), catalogSummary(labelled), "after -pagenumbers");
+	}
+
 	/**
 	 * Three A4 pages with what a catalog holds besides them: bookmarks to
 	 * /XYZ on page 2 (by /Dest), /FitH on page 3 (by a GoTo action), and /FitR

@@ -969,23 +969,13 @@ public class PdfTweak {
 		for (PdfPageLabelFormat format : labelFormats) {
 			lbls.addPageLabel(format);			
 		}
-		Document document = new Document(currentReader.getPageSizeWithRotation(1));
+		// Set them on the document itself, which keeps everything else
 		OutputStream baos = createTempOutputStream();
-		FormCopy copy = new FormCopy(document, baos);
-		document.open();
-		PdfImportedPage page;
-		for(int i=0; i<currentReader.getNumberOfPages(); i++) {
-			page = copy.getImportedPage(currentReader, i+1);
-			copy.addPage(page);
-		}
-		PRAcroForm form = currentReader.getAcroForm();
-		if (form != null) {
-			copy.copyAcroForm(currentReader);
-		}
-		copy.setPageLabels(lbls);
-		copyXMPMetadata(currentReader, copy);
-		document.close();
-		copyInformation(currentReader, currentReader = getTempPdfReader(baos));
+		PdfStamper stamper = new PdfStamper(currentReader, baos);
+		currentReader.getCatalog().put(PdfName.PAGELABELS, lbls.getDictionary(stamper.getWriter()));
+		stamper.close();
+		currentReader.close(); // iText 5.5 leaves it open, which would keep a temporary file in use
+		currentReader = getTempPdfReader(baos);
 	}
 
 	public void preserveHyperlinks() {
