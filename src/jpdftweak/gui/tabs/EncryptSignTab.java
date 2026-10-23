@@ -96,8 +96,9 @@ public class EncryptSignTab extends Tab {
 	protected void loadEncryptionData() {
 		if (mainForm.getInputFile() == null) return;
 		PdfInputFile ifile = mainForm.getInputFile();
-		int cm = ifile.getCryptoMode();
-		if (cm != -1) encryptMode.setSelectedIndex(cm);
+		// iText adds DO_NOT_ENCRYPT_METADATA to the mode, and reports AES-256, which is not in the list, as 3
+		int cm = ifile.getCryptoMode() & 7; // PdfWriter.ENCRYPTION_MASK, which is not public
+		if (ifile.getCryptoMode() != -1 && cm < encryptMode.getItemCount()) encryptMode.setSelectedIndex(cm);
 		noEncryptMetadata.setSelected(!ifile.isMetadataEncrypted());
 		userPassword.setText(ifile.getUserPassword());
 		ownerPassword.setText(ifile.getOwnerPassword());

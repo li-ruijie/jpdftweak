@@ -76,6 +76,7 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 
 - Save uncompressed (`-ou`) again when any other option or the Output tab is used, which made the flag do nothing
 - Save uncompressed every stream, where only page contents were before: fonts, attachments, images stored with Flate, and the forms that hold cropped, scaled, or shuffled pages. Images in their own encoding, such as JPEG, keep it
+- Load the passwords, permissions, and metadata setting from documents encrypted with AES-256 or with unencrypted metadata in the Encrypt/Sign tab, which failed and loaded nothing. The mode stays as it was for AES-256, which the tab cannot write, and the user password of an AES-256 document cannot be recovered
 
 ### 2026-10-24 - Version 1.3.1
 

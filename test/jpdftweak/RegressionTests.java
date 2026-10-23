@@ -27,11 +27,15 @@ import java.util.regex.Pattern;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JSlider;
+import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
 import jpdftweak.cli.CommandLineInterface;
 import jpdftweak.core.PdfBookmark;
+import jpdftweak.core.PdfInputFile;
 import jpdftweak.core.PdfToImage;
+import jpdftweak.gui.MainForm;
+import jpdftweak.gui.tabs.EncryptSignTab;
 import jpdftweak.gui.tabs.OutputTab;
 
 import com.itextpdf.text.Document;
@@ -370,6 +374,62 @@ public class RegressionTests {
 		});
 		assertEquals(true, enabled[0], "quality after choosing DEFLATE");
 		assertEquals(true, enabled[1], "quality for a multipage TIFF chosen again with DEFLATE");
+	}
+
+	/**
+	 * "Load from document" selected the crypto mode as a list index, which
+	 * failed for AES-256 (3) and with the flag for unencrypted metadata (8),
+	 * and then loaded nothing else.
+	 */
+	static void gui_encryptionLoadsFromAes256AndUnencryptedMetadata(File dir) throws Exception {
+		File plain = fixture(dir, "plain.pdf", 1);
+		final int[] modes = { PdfWriter.STANDARD_ENCRYPTION_128 | PdfWriter.DO_NOT_ENCRYPT_METADATA, PdfWriter.ENCRYPTION_AES_256 };
+		final File[] files = new File[modes.length];
+		for (int i = 0; i < modes.length; i++) {
+			files[i] = new File(dir, "encrypted" + i + ".pdf");
+			PdfStamper stamper = new PdfStamper(new PdfReader(plain.getPath()), new FileOutputStream(files[i]));
+			stamper.setEncryption("user".getBytes("ISO-8859-1"), "owner".getBytes("ISO-8859-1"),
+					PdfWriter.ALLOW_COPY | PdfWriter.ALLOW_SCREENREADERS, modes[i]);
+			stamper.close();
+		}
+		final String[] loaded = new String[modes.length];
+		SwingUtilities.invokeAndWait(new Runnable() {
+			public void run() {
+				MainForm form = new MainForm();
+				try {
+					EncryptSignTab tab = new EncryptSignTab(form);
+					Method load = EncryptSignTab.class.getDeclaredMethod("loadEncryptionData");
+					load.setAccessible(true);
+					for (int i = 0; i < files.length; i++) {
+						JComboBox mode = (JComboBox) field(tab, "encryptMode");
+						mode.setSelectedIndex(0);
+						form.setInputFile(new PdfInputFile(files[i], "owner"));
+						try {
+							load.invoke(tab);
+						} catch (InvocationTargetException ex) {
+							loaded[i] = "error " + ex.getCause();
+							continue;
+						}
+						List<String> permissions = new ArrayList<String>();
+						for (JCheckBox box : (JCheckBox[]) field(tab, "permissionBoxes")) {
+							if (box.isSelected())
+								permissions.add(box.getText());
+						}
+						loaded[i] = mode.getSelectedIndex() + " " + ((JCheckBox) field(tab, "noEncryptMetadata")).isSelected() + " "
+								+ ((JTextField) field(tab, "ownerPassword")).getText() + " "
+								+ ((JTextField) field(tab, "userPassword")).getText() + " " + permissions;
+					}
+				} catch (Exception ex) {
+					throw new RuntimeException(ex);
+				} finally {
+					form.dispose();
+				}
+			}
+		});
+		assertEquals("1 true owner user [Copy, ScreenReaders]", loaded[0], "128-bit RC4 without encrypted metadata");
+		// AES-256 is not in the list, so the mode stays as it was. It keeps only
+		// hashes of the passwords, so the user password cannot be recovered.
+		assertEquals("0 false owner  [Copy, ScreenReaders]", loaded[1], "AES-256");
 	}
 
 	/** A folder with an empty file of the library's name, which is all the Output tab checks for. */
