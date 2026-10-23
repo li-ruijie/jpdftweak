@@ -28,6 +28,14 @@ import com.itextpdf.text.pdf.PdfWriter;
  */
 class PageRemap {
 
+	/**
+	 * Gives the output's copy of an object that it shares with the imported
+	 * pages, such as an optional content group or a stream.
+	 */
+	interface Sharer {
+		PdfObject share(PRIndirectReference ref) throws IOException, DocumentException;
+	}
+
 	private static final PdfName SE = new PdfName("SE");
 
 	/**
@@ -40,6 +48,7 @@ class PageRemap {
 
 	private final PdfReader reader;
 	private final PdfWriter writer;
+	private final Sharer sharer;
 	/** The page number of each page object, by object number */
 	private final Map<Integer, Integer> inputPages = new HashMap<Integer, Integer>();
 	/** The first output page that shows each input page, 0 if none */
@@ -48,9 +57,23 @@ class PageRemap {
 	/** The copies of the indirect objects of reader, by object number */
 	private final Map<Integer, PdfIndirectReference> copies = new HashMap<Integer, PdfIndirectReference>();
 
+	/**
+	 * For a PdfWriter that draws imported pages. It writes the objects that
+	 * a reference to reader names through its PdfReaderInstance, the same
+	 * copies as the imported pages use.
+	 */
 	PageRemap(PdfReader reader, PdfWriter writer) {
+		this(reader, writer, new Sharer() {
+			public PdfObject share(PRIndirectReference ref) {
+				return ref;
+			}
+		});
+	}
+
+	PageRemap(PdfReader reader, PdfWriter writer, Sharer sharer) {
 		this.reader = reader;
 		this.writer = writer;
+		this.sharer = sharer;
 		int count = reader.getNumberOfPages();
 		outputPages = new int[count + 1];
 		matrices = new float[count + 1][];
@@ -167,7 +190,7 @@ class PageRemap {
 		if (target == null || target.isNull())
 			return null;
 		if (target.isStream() || isType(target, PdfName.OCG) || isType(target, PdfName.OCMD))
-			return ref; // the output shares it with the imported pages, through the writer's PdfReaderInstance
+			return sharer.share(ref);
 		if (isType(target, PdfName.PAGES) || isType(target, PdfName.PAGE))
 			return null; // the page tree, or a page outside of it
 		if (pointsNowhere(target))

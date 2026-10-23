@@ -252,6 +252,14 @@ public class OperationTests {
 				+ "labels: null\nhidden layer shared: true\n", catalogSummary(odd), "after -shuffle leaving out page 2");
 	}
 
+	/** Optimizing the size copies the pages, and keeps what the steps that rebuild them keep. */
+	static void main_optimizedSizeKeepsTheCatalog(File dir) throws Exception {
+		File in = catalogFixture(dir);
+		File optimized = new File(dir, "optimized.pdf");
+		cli(in.getPath(), "-os", optimized.getPath());
+		assertEquals(catalogSummary(in), catalogSummary(optimized), "after -os");
+	}
+
 	/** Setting page labels changes nothing else in the catalog. */
 	static void main_pageLabelsKeepTheCatalog(File dir) throws Exception {
 		File in = catalogFixture(dir);

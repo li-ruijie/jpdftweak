@@ -51,5 +51,11 @@ class FormCopy extends PdfCopy {
 				getExtraCatalog().put(PdfName.ACROFORM, copyIndirect((PRIndirectReference) form));
 			}
 		}
+
+		/** The copy of an object of reader, the same one the copied pages refer to. */
+		PdfObject share(PdfReader reader, PRIndirectReference ref) throws IOException, BadPdfFormatException {
+			setFromReader(reader);
+			return copyIndirect(ref);
+		}
 	}
 }

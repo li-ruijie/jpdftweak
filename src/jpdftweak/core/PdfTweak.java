@@ -24,6 +24,7 @@ import com.itextpdf.text.DocumentException;
 import com.itextpdf.text.Rectangle;
 import com.itextpdf.text.pdf.BaseFont;
 import com.itextpdf.text.pdf.PRAcroForm;
+import com.itextpdf.text.pdf.PRIndirectReference;
 import com.itextpdf.text.pdf.PRStream;
 import com.itextpdf.text.pdf.PdfAnnotation;
 import com.itextpdf.text.pdf.PdfContentByte;
@@ -42,10 +43,8 @@ import com.itextpdf.text.pdf.PdfTemplate;
 import com.itextpdf.text.pdf.PdfTransition;
 import com.itextpdf.text.pdf.PdfWriter;
 import com.itextpdf.text.pdf.RandomAccessFileOrArray;
-import com.itextpdf.text.pdf.SimpleBookmark;
 import com.itextpdf.text.pdf.PdfPageLabels.PdfPageLabelFormat;
 import com.itextpdf.text.pdf.interfaces.PdfEncryptionSettings;
-import com.itextpdf.text.pdf.internal.PdfViewerPreferencesImp;
 import com.itextpdf.text.pdf.security.BouncyCastleDigest;
 import com.itextpdf.text.pdf.security.DigestAlgorithms;
 import com.itextpdf.text.pdf.security.MakeSignature;
@@ -318,7 +317,7 @@ public class PdfTweak {
 		if (sizeOptimize) {
 			Document document = new Document(currentReader.getPageSizeWithRotation(1));
 			OutputStream baos = createTempOutputStream();
-			FormCopy.Smart copy = new FormCopy.Smart(document, baos);
+			final FormCopy.Smart copy = new FormCopy.Smart(document, baos);
 			document.open();
 			PdfImportedPage page;
 			for(int i=0; i<currentReader.getNumberOfPages(); i++) {
@@ -329,17 +328,17 @@ public class PdfTweak {
 			if (form != null) {
 				copy.copyAcroForm(currentReader);
 			}
-			copy.setOutlines(SimpleBookmark.getBookmark(currentReader));
-			PdfViewerPreferencesImp.getViewerPreferences(currentReader.getCatalog()).addToCatalog(copy.getExtraCatalog());
-			copyXMPMetadata(currentReader, copy);
-			PdfPageLabelFormat[] formats = PdfPageLabels.getPageLabelFormats(currentReader);
-			if (formats != null) {
-				PdfPageLabels lbls = new PdfPageLabels();
-				for (PdfPageLabelFormat format : formats) {
-					lbls.addPageLabel(format);			
+			final PdfReader reader = currentReader;
+			PageRemap remap = new PageRemap(reader, copy, new PageRemap.Sharer() {
+				public PdfObject share(PRIndirectReference ref) throws IOException, DocumentException {
+					return copy.share(reader, ref);
 				}
-				copy.setPageLabels(lbls);
+			});
+			for (int i = 1; i <= reader.getNumberOfPages(); i++) {
+				remap.place(i, i, 1, 0, 0, 1, 0, 0);
 			}
+			remap.copyCatalog(true);
+			copyXMPMetadata(currentReader, copy);
 			document.close();
 			copyInformation(currentReader, currentReader = getTempPdfReader(baos));
 		}
