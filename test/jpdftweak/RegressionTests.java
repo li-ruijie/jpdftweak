@@ -44,6 +44,7 @@ import com.itextpdf.text.pdf.PdfArray;
 import com.itextpdf.text.pdf.PdfDestination;
 import com.itextpdf.text.pdf.PdfDictionary;
 import com.itextpdf.text.pdf.PdfName;
+import com.itextpdf.text.pdf.PdfNull;
 import com.itextpdf.text.pdf.PdfNumber;
 import com.itextpdf.text.pdf.PdfReader;
 import com.itextpdf.text.pdf.PdfStamper;
@@ -382,6 +383,19 @@ public class RegressionTests {
 		Field f = owner.getClass().getDeclaredField(name);
 		f.setAccessible(true);
 		return f.get(owner);
+	}
+
+	/** iText's PdfImportedLink threw a NullPointerException on an /XYZ destination without coordinates. */
+	static void main_linksKeepXyzDestinationsWithoutCoordinates(File dir) throws Exception {
+		PdfArray dest = new PdfArray();
+		dest.add(PdfName.XYZ);
+		dest.add(PdfNull.PDFNULL);
+		dest.add(PdfNull.PDFNULL);
+		dest.add(PdfNull.PDFNULL);
+		File in = OperationTests.linkFixture(dir, "in.pdf", 2, dest);
+		File out = new File(dir, "out.pdf");
+		cli(in.getPath(), "-preserveLinks", "On", "-scale", "1190,1684", out.getPath());
+		assertEquals("[2 /XYZ null null null]", OperationTests.linkDestinations(out, 1), "link destination");
 	}
 
 	static void main_imageOptionsOnlyNeedTheLibraryForImageOutput(File dir) throws Exception {

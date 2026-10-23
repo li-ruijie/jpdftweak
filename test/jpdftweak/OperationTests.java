@@ -38,10 +38,12 @@ import com.itextpdf.text.Paragraph;
 import com.itextpdf.text.Rectangle;
 import com.itextpdf.text.exceptions.BadPasswordException;
 import com.itextpdf.text.pdf.AcroFields;
+import com.itextpdf.text.pdf.PdfAnnotation;
 import com.itextpdf.text.pdf.PdfArray;
 import com.itextpdf.text.pdf.PdfContentByte;
 import com.itextpdf.text.pdf.PdfDictionary;
 import com.itextpdf.text.pdf.PdfGState;
+import com.itextpdf.text.pdf.PdfIndirectReference;
 import com.itextpdf.text.pdf.PdfName;
 import com.itextpdf.text.pdf.PdfNumber;
 import com.itextpdf.text.pdf.PRStream;
@@ -170,6 +172,85 @@ public class OperationTests {
 		} finally {
 			reader.close();
 		}
+	}
+
+	/**
+	 * A link destination goes to the first output page that shows its page,
+	 * with its coordinates placed like that page, whatever its type.
+	 */
+	static void main_linkDestinationsFollowTheirPage(File dir) throws Exception {
+		PdfArray fitH = new PdfArray();
+		fitH.add(PdfName.FITH);
+		fitH.add(new PdfNumber(500));
+		PdfArray fitR = new PdfArray();
+		fitR.add(PdfName.FITR);
+		fitR.add(new PdfNumber(100));
+		fitR.add(new PdfNumber(200));
+		fitR.add(new PdfNumber(300));
+		fitR.add(new PdfNumber(400));
+		File in = linkFixture(dir, "in.pdf", 2, fitH, fitR);
+		File scaled = new File(dir, "scaled.pdf");
+		cli(in.getPath(), "-preserveLinks", "On", "-scale", "1190,1684", scaled.getPath());
+		assertEquals("[2 /FitH 1000, 2 /FitR 200 400 600 800]", linkDestinations(scaled, 1), "after scaling by 2");
+		// A page turned by 90 degrees and then drawn upright: x' = y, y' = 595 - x
+		File turned = new File(dir, "turned.pdf");
+		cli(in.getPath(), "-preserveLinks", "On", "-rotexp", "R", turned.getPath());
+		assertEquals("[2 /FitV 500, 2 /FitR 200 295 400 495]", linkDestinations(turned, 1), "after turning the pages");
+		// Each page shown at full size, then at half size
+		File twice = new File(dir, "twice.pdf");
+		cli(in.getPath(), "-preserveLinks", "On", "-shuffle", "1:!+1N1+0%+0%,!+1N0.5+0%+0%", twice.getPath());
+		assertEquals("[3 /FitH 500, 3 /FitR 100 200 300 400]", linkDestinations(twice, 1), "links on the full size page");
+		assertEquals("[3 /FitH 500, 3 /FitR 100 200 300 400]", linkDestinations(twice, 2), "links on the half size page");
+	}
+
+	/** Three A4 pages, the first with one link for each destination, given without its page. */
+	static File linkFixture(File dir, String name, int targetPage, PdfArray... destinations) throws Exception {
+		File f = new File(dir, name);
+		Document document = new Document(PageSize.A4);
+		PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream(f));
+		document.open();
+		document.add(new Paragraph("Page 1"));
+		for (int i = 0; i < destinations.length; i++) {
+			PdfAnnotation link = new PdfAnnotation(writer, new Rectangle(50, 50 + 60 * i, 150, 100 + 60 * i));
+			link.put(PdfName.SUBTYPE, PdfName.LINK);
+			PdfArray dest = new PdfArray(destinations[i]);
+			dest.add(0, writer.getPageReference(targetPage));
+			link.put(PdfName.DEST, dest);
+			writer.addAnnotation(link);
+		}
+		for (int i = 2; i <= 3; i++) {
+			document.newPage();
+			document.add(new Paragraph("Page " + i));
+		}
+		document.close();
+		return f;
+	}
+
+	/** The destinations of the links on a page, each as its page number and the rest of its array. */
+	static String linkDestinations(File pdf, int page) throws Exception {
+		PdfReader reader = new PdfReader(pdf.getPath());
+		try {
+			List<String> result = new ArrayList<String>();
+			PdfArray annots = reader.getPageN(page).getAsArray(PdfName.ANNOTS);
+			for (int i = 0; annots != null && i < annots.size(); i++)
+				result.add(destination(reader, annots.getAsDict(i).getAsArray(PdfName.DEST)));
+			return result.toString();
+		} finally {
+			reader.close();
+		}
+	}
+
+	/** A destination as its page number and the rest of its array. */
+	static String destination(PdfReader reader, PdfArray dest) {
+		StringBuilder s = new StringBuilder();
+		PdfIndirectReference ref = (PdfIndirectReference) dest.getPdfObject(0);
+		for (int page = 1; page <= reader.getNumberOfPages(); page++) {
+			if (reader.getPageOrigRef(page).getNumber() == ref.getNumber())
+				s.append(page);
+		}
+		for (int i = 1; i < dest.size(); i++)
+			s.append(' ').append(dest.getPdfObject(i));
+		return s.toString();
 	}
 
 	// ---- page content ----

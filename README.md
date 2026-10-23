@@ -72,6 +72,13 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 
 ## ChangeLog
 
+### Unreleased
+
+- Keep preserved links whose /XYZ destination has no coordinates, which made cropping, scaling, rotating, and shuffling fail
+- Move every destination type of preserved links with the page it points at, where only /XYZ moved before, and swap /FitH and /FitV when the page turns by a quarter
+- Point preserved links at the first page that shows their target after shuffling, instead of the last
+- Move a preserved link destination by the crop of the page it points at, instead of the crop of the page holding the link
+
 ### 2026-10-24 - Version 1.2.2
 
 - Keep the quality slider enabled in the Output tab when switching to TIFF output with JPEG or ZLIB compression selected
