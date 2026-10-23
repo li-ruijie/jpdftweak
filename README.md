@@ -72,7 +72,7 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 
 ## ChangeLog
 
-### Unreleased
+### 2026-10-24 - Version 1.3.0
 
 - Keep bookmarks, named destinations, attachments, viewer settings, the open action, the language, and layers when cropping, scaling, rotating explicitly, and shuffling, with destinations moved to the first page that shows their target, and keep page labels except when shuffling
 - Keep bookmarks, attachments, and everything else in the document when setting page labels, which copied the pages without them
