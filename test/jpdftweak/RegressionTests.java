@@ -435,6 +435,20 @@ public class RegressionTests {
 		assertTrue(OperationTests.text(out, 1).contains("Background"), "background drawn");
 	}
 
+	/** Any option made -ou compress again, as it set up the image export that turned the flag off. */
+	static void main_uncompressedOutputAfterAnOption(File dir) throws Exception {
+		File in = fixture(dir, "in.pdf", 1);
+		File out = new File(dir, "out.pdf");
+		cli(in.getPath(), "-watermark", "DRAFT,20,0.5", "-ou", out.getPath());
+		PdfReader reader = new PdfReader(out.getPath());
+		try {
+			PdfDictionary contents = (PdfDictionary) PdfReader.getPdfObject(reader.getPageN(1).get(PdfName.CONTENTS));
+			assertTrue(contents.get(PdfName.FILTER) == null, "-ou after -watermark writes an unfiltered content stream");
+		} finally {
+			reader.close();
+		}
+	}
+
 	static void main_imageOptionsOnlyNeedTheLibraryForImageOutput(File dir) throws Exception {
 		final File in = fixture(dir, "in.pdf", 1);
 		final File out = new File(dir, "out.pdf");

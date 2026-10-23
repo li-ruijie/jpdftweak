@@ -357,7 +357,7 @@ public class PdfTweak {
 			throw new IOException("Output file must be different from input file(s)");
 		cargoCult();
 		try {
-			if (uncompressed && pdfImages == null) {
+			if (uncompressed) {
 				Document.compress = false;
 			}
 			int total = currentReader.getNumberOfPages();
