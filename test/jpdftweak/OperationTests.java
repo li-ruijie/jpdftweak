@@ -18,8 +18,10 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,20 +40,26 @@ import com.itextpdf.text.Paragraph;
 import com.itextpdf.text.Rectangle;
 import com.itextpdf.text.exceptions.BadPasswordException;
 import com.itextpdf.text.pdf.AcroFields;
+import com.itextpdf.text.pdf.PdfAction;
 import com.itextpdf.text.pdf.PdfAnnotation;
 import com.itextpdf.text.pdf.PdfArray;
 import com.itextpdf.text.pdf.PdfContentByte;
+import com.itextpdf.text.pdf.PdfDestination;
 import com.itextpdf.text.pdf.PdfDictionary;
 import com.itextpdf.text.pdf.PdfGState;
 import com.itextpdf.text.pdf.PdfIndirectReference;
+import com.itextpdf.text.pdf.PdfLayer;
 import com.itextpdf.text.pdf.PdfName;
+import com.itextpdf.text.pdf.PdfNameTree;
 import com.itextpdf.text.pdf.PdfNumber;
 import com.itextpdf.text.pdf.PRStream;
 import com.itextpdf.text.pdf.PdfObject;
+import com.itextpdf.text.pdf.PdfOutline;
 import com.itextpdf.text.pdf.PdfPageLabels;
 import com.itextpdf.text.pdf.PdfReader;
 import com.itextpdf.text.pdf.PdfRectangle;
 import com.itextpdf.text.pdf.PdfStamper;
+import com.itextpdf.text.pdf.PdfString;
 import com.itextpdf.text.pdf.PdfWriter;
 import com.itextpdf.text.pdf.SimpleBookmark;
 import com.itextpdf.text.pdf.TextField;
@@ -201,6 +209,181 @@ public class OperationTests {
 		cli(in.getPath(), "-preserveLinks", "On", "-shuffle", "1:!+1N1+0%+0%,!+1N0.5+0%+0%", twice.getPath());
 		assertEquals("[3 /FitH 500, 3 /FitR 100 200 300 400]", linkDestinations(twice, 1), "links on the full size page");
 		assertEquals("[3 /FitH 500, 3 /FitR 100 200 300 400]", linkDestinations(twice, 2), "links on the half size page");
+	}
+
+	/** The catalog entries that refer to pages, and the ones that go with them, survive the steps that rebuild the pages. */
+	static void main_rebuiltPagesKeepTheCatalog(File dir) throws Exception {
+		File in = catalogFixture(dir);
+		String common = "attachment Note: Attached\n"
+				+ "/PageMode: /UseOutlines\n/PageLayout: /TwoColumnLeft\n/Lang: en-GB\nHideToolbar: true\n";
+		assertEquals("bookmark XYZ: 2 /XYZ 100 700 0\nbookmark FitH: 3 /FitH 500\nbookmark FitR: 1 /FitR 100 200 300 400\n"
+				+ "named named: 3 /XYZ 50 400 0\ndests /old: 1 /Fit\nopen: 2 /FitV 200\n" + common
+				+ "labels: [i, ii, iii]\nhidden layer shared: true\n", catalogSummary(in), "fixture");
+		// Pages 2 and 3 cropped by 50 from the left and 100 from the bottom
+		File boxed = withPageEntries(in, new File(dir, "boxed2.pdf"), 2, PdfName.CROPBOX, new PdfRectangle(50, 100, 545, 742));
+		boxed = withPageEntries(boxed, new File(dir, "boxed.pdf"), 3, PdfName.CROPBOX, new PdfRectangle(50, 100, 545, 742));
+		File cropped = new File(dir, "cropped.pdf");
+		cli(boxed.getPath(), "-crop", "CropBox", cropped.getPath());
+		assertEquals("bookmark XYZ: 2 /XYZ 50 600 0\nbookmark FitH: 3 /FitH 400\nbookmark FitR: 1 /FitR 100 200 300 400\n"
+				+ "named named: 3 /XYZ 0 300 0\ndests /old: 1 /Fit\nopen: 2 /FitV 150\n" + common
+				+ "labels: [i, ii, iii]\nhidden layer shared: true\n", catalogSummary(cropped), "after -crop");
+		File scaled = new File(dir, "scaled.pdf");
+		cli(in.getPath(), "-scale", "1190,1684", scaled.getPath());
+		assertEquals("bookmark XYZ: 2 /XYZ 200 1400 0\nbookmark FitH: 3 /FitH 1000\nbookmark FitR: 1 /FitR 200 400 600 800\n"
+				+ "named named: 3 /XYZ 100 800 0\ndests /old: 1 /Fit\nopen: 2 /FitV 400\n" + common
+				+ "labels: [i, ii, iii]\nhidden layer shared: true\n", catalogSummary(scaled), "after -scale");
+		// Turned by 90 degrees and drawn upright: x' = y, y' = 595 - x
+		File turned = new File(dir, "turned.pdf");
+		cli(in.getPath(), "-rotexp", "R", turned.getPath());
+		assertEquals("bookmark XYZ: 2 /XYZ 700 495 0\nbookmark FitH: 3 /FitV 500\nbookmark FitR: 1 /FitR 200 295 400 495\n"
+				+ "named named: 3 /XYZ 400 545 0\ndests /old: 1 /Fit\nopen: 2 /FitH 395\n" + common
+				+ "labels: [i, ii, iii]\nhidden layer shared: true\n", catalogSummary(turned), "after -rotexp");
+		// Each page shown at full size, then at half size: destinations go to the first
+		File twice = new File(dir, "twice.pdf");
+		cli(in.getPath(), "-shuffle", "1:!+1N1+0%+0%,!+1N0.5+0%+0%", twice.getPath());
+		assertEquals("bookmark XYZ: 3 /XYZ 100 700 0\nbookmark FitH: 5 /FitH 500\nbookmark FitR: 1 /FitR 100 200 300 400\n"
+				+ "named named: 5 /XYZ 50 400 0\ndests /old: 1 /Fit\nopen: 3 /FitV 200\n" + common
+				+ "labels: null\nhidden layer shared: true\n", catalogSummary(twice), "after -shuffle showing each page twice");
+		// Pages 1 and 3 only: what points at page 2 goes, the bookmark stays as a label
+		File odd = new File(dir, "odd.pdf");
+		cli(in.getPath(), "-shuffle", "2:!+1N1+0%+0%", odd.getPath());
+		assertEquals("bookmark XYZ: -\nbookmark FitH: 2 /FitH 500\nbookmark FitR: 1 /FitR 100 200 300 400\n"
+				+ "named named: 2 /XYZ 50 400 0\ndests /old: 1 /Fit\nopen: -\n" + common
+				+ "labels: null\nhidden layer shared: true\n", catalogSummary(odd), "after -shuffle leaving out page 2");
+	}
+
+	/**
+	 * Three A4 pages with what a catalog holds besides them: bookmarks to
+	 * /XYZ on page 2 (by /Dest), /FitH on page 3 (by a GoTo action), and /FitR
+	 * on page 1, named destinations in the name tree and in /Dests, an
+	 * attachment, viewer settings, an open action, a language, page labels,
+	 * and a layer on page 1 that is hidden by default.
+	 */
+	static File catalogFixture(File dir) throws Exception {
+		File f = new File(dir, "catalog.pdf");
+		Document document = new Document(PageSize.A4);
+		PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream(f));
+		writer.setViewerPreferences(PdfWriter.PageLayoutTwoColumnLeft | PdfWriter.PageModeUseOutlines | PdfWriter.HideToolbar);
+		document.open();
+		document.add(new Paragraph("Page 1"));
+		PdfLayer layer = new PdfLayer("Hidden", writer);
+		layer.setOn(false);
+		PdfContentByte canvas = writer.getDirectContent();
+		canvas.beginLayer(layer);
+		canvas.rectangle(100, 100, 50, 50);
+		canvas.fill();
+		canvas.endLayer();
+		for (int i = 2; i <= 3; i++) {
+			document.newPage();
+			document.add(new Paragraph("Page " + i));
+		}
+		PdfOutline root = writer.getRootOutline();
+		PdfDestination xyz = new PdfDestination(PdfDestination.XYZ, 100, 700, 0);
+		xyz.addPage(writer.getPageReference(2));
+		new PdfOutline(root, xyz, "XYZ");
+		new PdfOutline(root, PdfAction.gotoLocalPage(3, new PdfDestination(PdfDestination.FITH, 500), writer), "FitH");
+		PdfDestination fitR = new PdfDestination(PdfDestination.FITR, 100, 200, 300, 400);
+		fitR.addPage(writer.getPageReference(1));
+		new PdfOutline(root, fitR, "FitR");
+		Map<String, String> named = new HashMap<String, String>();
+		named.put("named", "3 XYZ 50 400 0");
+		writer.addNamedDestinations(named, 0);
+		PdfArray oldDest = new PdfArray();
+		oldDest.add(writer.getPageReference(1));
+		oldDest.add(PdfName.FIT);
+		PdfDictionary oldValue = new PdfDictionary();
+		oldValue.put(PdfName.D, oldDest);
+		PdfDictionary dests = new PdfDictionary();
+		dests.put(new PdfName("old"), oldValue);
+		writer.getExtraCatalog().put(PdfName.DESTS, dests);
+		writer.addFileAttachment("Note", "Attached".getBytes("ISO-8859-1"), null, "note.txt");
+		writer.setOpenAction(PdfAction.gotoLocalPage(2, new PdfDestination(PdfDestination.FITV, 200), writer));
+		writer.getExtraCatalog().put(PdfName.LANG, new PdfString("en-GB"));
+		PdfPageLabels labels = new PdfPageLabels();
+		labels.addPageLabel(1, PdfPageLabels.LOWERCASE_ROMAN_NUMERALS);
+		writer.setPageLabels(labels);
+		document.close();
+		return f;
+	}
+
+	/** The catalog entries of catalogFixture, one per line, with each destination as its page and the rest of its array. */
+	static String catalogSummary(File pdf) throws Exception {
+		PdfReader reader = new PdfReader(pdf.getPath());
+		try {
+			PdfDictionary catalog = reader.getCatalog();
+			StringBuilder s = new StringBuilder();
+			PdfDictionary outlines = catalog.getAsDict(PdfName.OUTLINES);
+			for (PdfDictionary item = outlines == null ? null : outlines.getAsDict(PdfName.FIRST); item != null; item = item.getAsDict(PdfName.NEXT)) {
+				PdfObject target = item.get(PdfName.DEST) != null ? item.get(PdfName.DEST) : item.get(PdfName.A);
+				s.append("bookmark ").append(item.getAsString(PdfName.TITLE)).append(": ").append(target(reader, target)).append('\n');
+			}
+			PdfDictionary names = catalog.getAsDict(PdfName.NAMES);
+			if (names != null && names.getAsDict(PdfName.DESTS) != null) {
+				for (Map.Entry<String, PdfObject> e : new TreeMap<String, PdfObject>(PdfNameTree.readTree(names.getAsDict(PdfName.DESTS))).entrySet())
+					s.append("named ").append(e.getKey()).append(": ").append(target(reader, e.getValue())).append('\n');
+			}
+			PdfDictionary dests = catalog.getAsDict(PdfName.DESTS);
+			if (dests != null) {
+				for (PdfName key : dests.getKeys())
+					s.append("dests ").append(key).append(": ").append(target(reader, dests.get(key))).append('\n');
+			}
+			s.append("open: ").append(target(reader, catalog.get(PdfName.OPENACTION))).append('\n');
+			if (names != null && names.getAsDict(PdfName.EMBEDDEDFILES) != null) {
+				for (Map.Entry<String, PdfObject> e : new TreeMap<String, PdfObject>(PdfNameTree.readTree(names.getAsDict(PdfName.EMBEDDEDFILES))).entrySet()) {
+					PdfDictionary spec = (PdfDictionary) PdfReader.getPdfObject(e.getValue());
+					PRStream file = (PRStream) PdfReader.getPdfObject(spec.getAsDict(PdfName.EF).get(PdfName.F));
+					s.append("attachment ").append(e.getKey()).append(": ").append(new String(PdfReader.getStreamBytes(file), "ISO-8859-1")).append('\n');
+				}
+			}
+			for (PdfName key : new PdfName[] { PdfName.PAGEMODE, PdfName.PAGELAYOUT, PdfName.LANG })
+				s.append(key).append(": ").append(PdfReader.getPdfObject(catalog.get(key))).append('\n');
+			PdfDictionary preferences = catalog.getAsDict(PdfName.VIEWERPREFERENCES);
+			s.append("HideToolbar: ").append(preferences == null ? null : preferences.get(PdfName.HIDETOOLBAR)).append('\n');
+			s.append("labels: ").append(Arrays.toString(PdfPageLabels.getPageLabels(reader))).append('\n');
+			s.append("hidden layer shared: ").append(hiddenLayerShared(reader)).append('\n');
+			return s.toString();
+		} finally {
+			reader.close();
+		}
+	}
+
+	/** A destination, or what holds one in /D (a GoTo action or a /Dests entry), as its page and the rest of its array. */
+	static String target(PdfReader reader, PdfObject object) {
+		object = PdfReader.getPdfObject(object);
+		if (object != null && object.isDictionary())
+			object = PdfReader.getPdfObject(((PdfDictionary) object).get(PdfName.D));
+		if (object == null)
+			return "-";
+		if (!object.isArray())
+			return "named " + object;
+		return destination(reader, (PdfArray) object);
+	}
+
+	/** Whether the layer hidden by default is the one the content of page 1 uses, so that it stays hidden. */
+	static boolean hiddenLayerShared(PdfReader reader) {
+		PdfDictionary properties = reader.getCatalog().getAsDict(PdfName.OCPROPERTIES);
+		if (properties == null)
+			return false;
+		PdfArray off = properties.getAsDict(PdfName.D).getAsArray(PdfName.OFF);
+		return usesObject(reader.getPageN(1).getAsDict(PdfName.RESOURCES), ((PdfIndirectReference) off.getPdfObject(0)).getNumber());
+	}
+
+	/** Whether resources, or the resources of a form they hold, name the object as a property list. */
+	static boolean usesObject(PdfDictionary resources, int number) {
+		if (resources == null)
+			return false;
+		PdfDictionary properties = resources.getAsDict(PdfName.PROPERTIES);
+		for (PdfName key : properties == null ? new HashSet<PdfName>() : properties.getKeys()) {
+			PdfObject value = properties.get(key);
+			if (value instanceof PdfIndirectReference && ((PdfIndirectReference) value).getNumber() == number)
+				return true;
+		}
+		PdfDictionary forms = resources.getAsDict(PdfName.XOBJECT);
+		for (PdfName key : forms == null ? new HashSet<PdfName>() : forms.getKeys()) {
+			if (usesObject(((PdfDictionary) PdfReader.getPdfObject(forms.get(key))).getAsDict(PdfName.RESOURCES), number))
+				return true;
+		}
+		return false;
 	}
 
 	/** Three A4 pages, the first with one link for each destination, given without its page. */

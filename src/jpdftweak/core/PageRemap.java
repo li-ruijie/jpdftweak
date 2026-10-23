@@ -12,6 +12,7 @@ import com.itextpdf.text.pdf.PdfArray;
 import com.itextpdf.text.pdf.PdfDictionary;
 import com.itextpdf.text.pdf.PdfIndirectReference;
 import com.itextpdf.text.pdf.PdfName;
+import com.itextpdf.text.pdf.PdfNameTree;
 import com.itextpdf.text.pdf.PdfNull;
 import com.itextpdf.text.pdf.PdfNumber;
 import com.itextpdf.text.pdf.PdfObject;
@@ -28,6 +29,14 @@ import com.itextpdf.text.pdf.PdfWriter;
 class PageRemap {
 
 	private static final PdfName SE = new PdfName("SE");
+
+	/**
+	 * The catalog entries carried over, besides /Names and /PageLabels. The
+	 * others (the structure tree, article threads, the form) belong to the
+	 * input pages, which the output only draws.
+	 */
+	private static final PdfName[] CATALOG_ENTRIES = { PdfName.OUTLINES, PdfName.DESTS, PdfName.VIEWERPREFERENCES,
+			PdfName.PAGEMODE, PdfName.PAGELAYOUT, PdfName.OPENACTION, PdfName.LANG, PdfName.OCPROPERTIES };
 
 	private final PdfReader reader;
 	private final PdfWriter writer;
@@ -84,6 +93,51 @@ class PageRemap {
 			annotation.putAll(copy);
 			writer.addAnnotation(annotation);
 		}
+	}
+
+	/**
+	 * Copies the catalog entries, the named destinations and attachments of
+	 * /Names, and the page labels if keepPageLabels. Call it after placing
+	 * every page and before closing the document.
+	 */
+	void copyCatalog(boolean keepPageLabels) throws IOException, DocumentException {
+		PdfDictionary catalog = reader.getCatalog();
+		for (PdfName key : CATALOG_ENTRIES)
+			putInCatalog(key, copy(catalog.get(key)));
+		if (keepPageLabels)
+			putInCatalog(PdfName.PAGELABELS, copy(catalog.get(PdfName.PAGELABELS)));
+		PdfDictionary names = catalog.getAsDict(PdfName.NAMES);
+		if (names == null)
+			return;
+		PdfDictionary newNames = new PdfDictionary();
+		PdfDictionary dests = names.getAsDict(PdfName.DESTS);
+		if (dests != null) {
+			HashMap<String, PdfObject> newDests = new HashMap<String, PdfObject>();
+			for (Map.Entry<String, PdfObject> e : PdfNameTree.readTree(dests).entrySet()) {
+				PdfObject dest = copy(e.getValue());
+				if (dest != null)
+					newDests.put(e.getKey(), dest);
+			}
+			if (!newDests.isEmpty())
+				newNames.put(PdfName.DESTS, writer.addToBody(PdfNameTree.writeTree(newDests, writer)).getIndirectReference());
+		}
+		PdfObject files = copy(names.get(PdfName.EMBEDDEDFILES));
+		if (files != null)
+			newNames.put(PdfName.EMBEDDEDFILES, files);
+		if (newNames.size() > 0)
+			putInCatalog(PdfName.NAMES, newNames);
+	}
+
+	/**
+	 * The writer adds its catalog after the objects of its imported pages, so
+	 * a dictionary or array goes in as an indirect object written now.
+	 */
+	private void putInCatalog(PdfName key, PdfObject value) throws IOException {
+		if (value == null)
+			return;
+		if (value.isDictionary() || value.isArray())
+			value = writer.addToBody(value).getIndirectReference();
+		writer.getExtraCatalog().put(key, value);
 	}
 
 	private static boolean lost(PdfDictionary original, PdfDictionary copy, PdfName key) {

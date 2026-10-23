@@ -74,6 +74,7 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 
 ### Unreleased
 
+- Keep bookmarks, named destinations, attachments, viewer settings, the open action, the language, and layers when cropping, scaling, rotating explicitly, and shuffling, with destinations moved to the first page that shows their target, and keep page labels except when shuffling
 - Keep preserved links whose /XYZ destination has no coordinates, which made cropping, scaling, rotating, and shuffling fail
 - Move every destination type of preserved links with the page it points at, where only /XYZ moved before, and swap /FitH and /FitV when the page turns by a quarter
 - Point preserved links at the first page that shows their target after shuffling, instead of the last

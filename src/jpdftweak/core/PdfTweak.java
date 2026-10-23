@@ -527,6 +527,7 @@ public class PdfTweak {
 			if (preserveHyperlinks)
 				remap.copyLinks(i, 1, 0, 0, 1, pageSize.getLeft()-currentSize.getLeft(), pageSize.getBottom()-currentSize.getBottom());
 		}
+		remap.copyCatalog(true);
 		copyXMPMetadata(currentReader, writer);
 		document.close();
 		copyInformation(currentReader, currentReader = getTempPdfReader(baos));
@@ -596,6 +597,7 @@ public class PdfTweak {
 			if (preserveHyperlinks)
 				remap.copyLinks(i, m[0], m[1], m[2], m[3], m[4], m[5]);
 		}
+		remap.copyCatalog(true);
 		copyXMPMetadata(currentReader, writer);
 		document.close();
 		copyInformation(currentReader, currentReader = getTempPdfReader(baos));	
@@ -656,6 +658,7 @@ public class PdfTweak {
 			if (preserveHyperlinks)
 				remap.copyLinks(i, m[0], m[1], m[2], m[3], m[4], m[5]);
 		}
+		remap.copyCatalog(true);
 		copyXMPMetadata(currentReader, writer);
 		document.close();
 		copyInformation(currentReader, currentReader = getTempPdfReader(baos));
@@ -751,6 +754,7 @@ public class PdfTweak {
 				}
 			}
 		}
+		remap.copyCatalog(false); // the page order and count change
 		copyXMPMetadata(currentReader, writer);
 		document.close();
 		copyInformation(currentReader, currentReader = getTempPdfReader(baos));	
