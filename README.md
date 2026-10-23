@@ -75,6 +75,7 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 ### Unreleased
 
 - Ask for error reports at the GitHub issue tracker in the error dialog, instead of at the original author's address
+- Refuse TIFF JPEG compression together with transparency in RGB mode, which crashed and left a corrupt file, and disable transparency in the Output tab while JPEG is selected
 
 ### 2026-10-22 - Version 1.2.0
 

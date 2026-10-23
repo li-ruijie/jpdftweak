@@ -150,7 +150,7 @@ public class OutputTab extends Tab {
 						break;
 					}
 					default:
-						transparent.setEnabled(true);
+						transparent.setEnabled(compressionType.getSelectedItem() != PdfToImage.TiffCompression.JPEG);
 						break;
 					}
 				}
@@ -318,7 +318,8 @@ public class OutputTab extends Tab {
 		compressionType.setEnabled(compression);
 		qualityLabel.setEnabled(quality);
 		qualitySlider.setEnabled(quality);
-		transparent.setEnabled(transparency);
+		// Java cannot JPEG-compress a TIFF with transparency
+		transparent.setEnabled(transparency && !(compression && compressionType.getSelectedItem() == PdfToImage.TiffCompression.JPEG));
 		uncompressed.setEnabled(pdfOptions);
 		pageMarks.setEnabled(pdfOptions);
 		optimizeSize.setEnabled(pdfOptions);

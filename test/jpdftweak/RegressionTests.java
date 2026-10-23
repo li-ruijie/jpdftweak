@@ -6,6 +6,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
@@ -23,9 +24,14 @@ import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.SwingUtilities;
+
 import jpdftweak.cli.CommandLineInterface;
 import jpdftweak.core.PdfBookmark;
 import jpdftweak.core.PdfToImage;
+import jpdftweak.gui.tabs.OutputTab;
 
 import com.itextpdf.text.Document;
 import com.itextpdf.text.DocumentException;
@@ -211,6 +217,96 @@ public class RegressionTests {
 			File image = new File(dir, "t" + page + ".tiff");
 			assertEquals(1, tiffPageCount(image), "pages in " + image + " after writing it twice");
 		}
+	}
+
+	/** The JDK's TIFF writer cannot JPEG-compress an image with an alpha channel. */
+	static void main_tiffJpegCompressionRefusesTransparency(File dir) throws Exception {
+		final File in = fixture(dir, "in.pdf", 2);
+		final String[][] commands = {
+				{ in.getPath(), "-burstfiletype", "TIFF", "-tiffcompression", "JPEG", "-transparency", "YES",
+						"-ob", new File(dir, "t*.tiff").getPath() },
+				{ in.getPath(), "-tiffcompression", "JPEG", "-transparency", "YES",
+						"-oi", new File(dir, "multi.tiff").getPath() } };
+		for (final String[] command : commands) {
+			try {
+				withJarFolder(nativesDir(), new Task() {
+					public void run() throws Exception {
+						cli(command);
+					}
+				});
+				throw new AssertionError("Accepted " + Arrays.toString(command));
+			} catch (IOException expected) {
+				assertEquals("TIFF JPEG compression cannot keep transparency. Turn transparency off or choose another compression.",
+						expected.getMessage(), "error of " + Arrays.toString(command));
+			}
+		}
+		for (String name : dir.list())
+			assertTrue(!name.endsWith(".tiff"), name + " not written");
+		// Only RGB keeps an alpha channel, so a grayscale TIFF can still use JPEG.
+		final File gray = new File(dir, "gray.tiff");
+		withJarFolder(nativesDir(), new Task() {
+			public void run() throws Exception {
+				cli(in.getPath(), "-colormode", "GRAY", "-tiffcompression", "JPEG", "-transparency", "YES",
+						"-oi", gray.getPath());
+			}
+		});
+		assertEquals(2, tiffPageCount(gray), "pages in " + gray);
+	}
+
+	/** The Output tab offers transparency for a TIFF only while it is not JPEG-compressed. */
+	static void gui_outputTabDisablesTransparencyForTiffJpeg(File dir) throws Exception {
+		// The tab only checks that a file of the library's name exists.
+		File natives = new File(dir, "natives");
+		natives.mkdirs();
+		new FileOutputStream(new File(natives, File.pathSeparatorChar == ';' ? "mupdf_java64.dll" : "libmupdf_java64.so")).close();
+		final boolean[] enabled = new boolean[6];
+		withJarFolder(natives, new Task() {
+			public void run() throws Exception {
+				SwingUtilities.invokeAndWait(new Runnable() {
+					public void run() {
+						try {
+							OutputTab tab = new OutputTab(null);
+							JCheckBox multipageTiff = (JCheckBox) field(tab, "multipageTiff");
+							JCheckBox burst = (JCheckBox) field(tab, "burst");
+							JCheckBox transparent = (JCheckBox) field(tab, "transparent");
+							JComboBox fileType = (JComboBox) field(tab, "fileType");
+							JComboBox colorMode = (JComboBox) field(tab, "colorMode");
+							JComboBox compressionType = (JComboBox) field(tab, "compressionType");
+							multipageTiff.doClick();
+							enabled[0] = transparent.isEnabled();
+							compressionType.setSelectedItem(PdfToImage.TiffCompression.JPEG);
+							enabled[1] = transparent.isEnabled();
+							colorMode.setSelectedItem(PdfToImage.ColorMode.GRAY);
+							colorMode.setSelectedItem(PdfToImage.ColorMode.RGB);
+							enabled[2] = transparent.isEnabled();
+							multipageTiff.doClick();
+							burst.doClick();
+							fileType.setSelectedItem(PdfToImage.ImageType.TIFF);
+							enabled[3] = transparent.isEnabled();
+							fileType.setSelectedItem(PdfToImage.ImageType.PNG);
+							enabled[4] = transparent.isEnabled();
+							fileType.setSelectedItem(PdfToImage.ImageType.TIFF);
+							compressionType.setSelectedItem(PdfToImage.TiffCompression.LZW);
+							enabled[5] = transparent.isEnabled();
+						} catch (Exception ex) {
+							throw new RuntimeException(ex);
+						}
+					}
+				});
+			}
+		});
+		assertEquals(true, enabled[0], "transparency for an uncompressed multipage TIFF");
+		assertEquals(false, enabled[1], "transparency after choosing JPEG");
+		assertEquals(false, enabled[2], "transparency after switching back to RGB with JPEG");
+		assertEquals(false, enabled[3], "transparency for a burst TIFF with JPEG");
+		assertEquals(true, enabled[4], "transparency for PNG with JPEG still chosen for TIFF");
+		assertEquals(true, enabled[5], "transparency for a burst TIFF after choosing LZW");
+	}
+
+	static Object field(Object owner, String name) throws Exception {
+		Field f = owner.getClass().getDeclaredField(name);
+		f.setAccessible(true);
+		return f.get(owner);
 	}
 
 	static void main_imageOptionsOnlyNeedTheLibraryForImageOutput(File dir) throws Exception {

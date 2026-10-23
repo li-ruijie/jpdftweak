@@ -110,6 +110,8 @@ public class PdfToImage {
 	 */
 	public void convertToImage(byte[] docByte, String outputFilePath)
 			throws IOException {
+		if (imageType == ImageType.TIFF)
+			checkTiffOptions();
 		boolean saved;
 		try {
 			saved = getRenderer().saveImage(docByte, outputFilePath, imageType, colorMode, compressionType, quality, transparent);
@@ -132,6 +134,7 @@ public class PdfToImage {
 	 * @throws IOException
 	 */
 	public void convertToMultiTiff(byte[] docByte, String outputPath) throws IOException{
+		checkTiffOptions();
 		boolean saved;
 		try {
 			saved = getRenderer().saveMultiTiff(docByte, replaceExtension(outputPath, "tiff"), colorMode, compressionType, quality, transparent);
@@ -144,6 +147,16 @@ public class PdfToImage {
 		}
 		if (!saved)
 			throw new IOException("Cannot save the pages as TIFF in color mode \"" + colorMode + "\"");
+	}
+
+	/**
+	 * The JDK's TIFF writer cannot JPEG-compress an image with an alpha
+	 * channel, which only RGB images have, so refuse that before any file
+	 * is written.
+	 */
+	private void checkTiffOptions() throws IOException {
+		if (compressionType == TiffCompression.JPEG && transparent && colorMode == ColorMode.RGB)
+			throw new IOException("TIFF JPEG compression cannot keep transparency. Turn transparency off or choose another compression.");
 	}
 
 	private static synchronized Renderer getRenderer() throws Exception {
