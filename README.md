@@ -74,7 +74,8 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 
 ### Unreleased
 
-- Save uncompressed (`-ou`) again when any other option or the Output tab is used, which made the flag do nothing. It writes the page content streams uncompressed and copies the other streams (images, fonts, attachments, and the forms that hold cropped, scaled, or shuffled pages) as they are
+- Save uncompressed (`-ou`) again when any other option or the Output tab is used, which made the flag do nothing
+- Save uncompressed every stream, where only page contents were before: fonts, attachments, images stored with Flate, and the forms that hold cropped, scaled, or shuffled pages. Images in their own encoding, such as JPEG, keep it
 
 ### 2026-10-24 - Version 1.3.1
 

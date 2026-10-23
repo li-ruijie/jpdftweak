@@ -12,6 +12,7 @@ import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.IllegalFormatException;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,7 @@ import com.itextpdf.text.pdf.BaseFont;
 import com.itextpdf.text.pdf.PRAcroForm;
 import com.itextpdf.text.pdf.PRIndirectReference;
 import com.itextpdf.text.pdf.PRStream;
+import com.itextpdf.text.pdf.PdfArray;
 import com.itextpdf.text.pdf.PdfContentByte;
 import com.itextpdf.text.pdf.PdfDictionary;
 import com.itextpdf.text.pdf.PdfGState;
@@ -359,6 +361,7 @@ public class PdfTweak {
 		try {
 			if (uncompressed) {
 				Document.compress = false;
+				uncompressStreams();
 			}
 			int total = currentReader.getNumberOfPages();
 			if(multipageTiff){
@@ -483,6 +486,39 @@ public class PdfTweak {
 		if (tempfile2 != null && !tempfile2.delete()) 
 			throw new IOException("Cannot delete "+tempfile2);
 		tempfile1 = tempfile2 = null;
+	}
+
+	/** The filters that only compress, which uncompressed output removes (as iText names and decodes them). */
+	private static final List<PdfName> COMPRESSION_FILTERS = Arrays.asList(
+			PdfName.FLATEDECODE, PdfName.FL, PdfName.LZWDECODE, PdfName.ASCIIHEXDECODE, PdfName.AHX,
+			PdfName.ASCII85DECODE, PdfName.A85, PdfName.RUNLENGTHDECODE);
+
+	/**
+	 * Decodes every stream whose filters only compress, and writes the result
+	 * out. The streams of an image encoding such as JPEG keep their filters.
+	 * Writing it out keeps the change in a reader that reads its file
+	 * partially, which drops objects from its cache once they are copied.
+	 */
+	private void uncompressStreams() throws DocumentException, IOException {
+		OutputStream baos = createTempOutputStream();
+		PdfStamper stamper = new PdfStamper(currentReader, baos);
+		for (int i = 1; i < currentReader.getXrefSize(); i++) {
+			PdfObject object = currentReader.getPdfObject(i);
+			if (object == null || !object.isStream())
+				continue;
+			PRStream stream = (PRStream) object;
+			PdfObject filter = PdfReader.getPdfObject(stream.get(PdfName.FILTER));
+			if (filter == null)
+				continue;
+			List<PdfObject> filters = filter.isArray() ? ((PdfArray) filter).getArrayList() : Arrays.asList(filter);
+			if (!COMPRESSION_FILTERS.containsAll(filters))
+				continue;
+			stream.setData(PdfReader.getStreamBytes(stream), false);
+			stream.remove(PdfName.DECODEPARMS);
+		}
+		stamper.close();
+		currentReader.close(); // iText 5.5 leaves it open, which would keep a temporary file in use
+		currentReader = getTempPdfReader(baos);
 	}
 
 	public void cropPages(PageBox cropTo) throws IOException, DocumentException {

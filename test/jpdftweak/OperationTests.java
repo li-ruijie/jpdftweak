@@ -260,6 +260,49 @@ public class OperationTests {
 		assertEquals(catalogSummary(in), catalogSummary(optimized), "after -os");
 	}
 
+	/** -ou writes every stream without the filters that only compress, and keeps image encodings such as JPEG. */
+	static void main_uncompressedOutputDecodesEveryStream(File dir) throws Exception {
+		File in = catalogFixture(dir);
+		File withImage = new File(dir, "image.pdf");
+		PdfReader reader = new PdfReader(in.getPath());
+		PdfStamper stamper = new PdfStamper(reader, new FileOutputStream(withImage));
+		java.awt.image.BufferedImage picture = new java.awt.image.BufferedImage(8, 8, java.awt.image.BufferedImage.TYPE_INT_RGB);
+		java.io.ByteArrayOutputStream jpeg = new java.io.ByteArrayOutputStream();
+		ImageIO.write(picture, "jpg", jpeg);
+		com.itextpdf.text.Image image = com.itextpdf.text.Image.getInstance(jpeg.toByteArray());
+		image.setAbsolutePosition(300, 300);
+		stamper.getOverContent(2).addImage(image);
+		stamper.close();
+		assertEquals("[/DCTDecode, /FlateDecode]", streamFilters(withImage).toString(), "filters of the input");
+		File plain = new File(dir, "plain.pdf");
+		cli(withImage.getPath(), "-ou", plain.getPath());
+		assertEquals("[/DCTDecode, none]", streamFilters(plain).toString(), "filters after -ou");
+		File cropped = new File(dir, "cropped.pdf");
+		cli(withImage.getPath(), "-crop", "MediaBox", "-ou", cropped.getPath());
+		assertEquals("[/DCTDecode, none]", streamFilters(cropped).toString(), "filters after -crop with -ou");
+		cli(withImage.getPath(), "-oub", new File(dir, "page*.pdf").getPath());
+		for (String label : new String[] { "i", "ii", "iii" }) // burst files take the page labels
+			assertTrue(!streamFilters(new File(dir, "page" + label + ".pdf")).contains("/FlateDecode"), "page " + label + " burst with -oub");
+	}
+
+	/** The distinct filters of the streams of a PDF, "none" for a stream without one. */
+	static java.util.TreeSet<String> streamFilters(File pdf) throws Exception {
+		PdfReader reader = new PdfReader(pdf.getPath());
+		try {
+			java.util.TreeSet<String> filters = new java.util.TreeSet<String>();
+			for (int i = 1; i < reader.getXrefSize(); i++) {
+				PdfObject object = reader.getPdfObject(i);
+				if (object != null && object.isStream()) {
+					PdfObject filter = PdfReader.getPdfObject(((PRStream) object).get(PdfName.FILTER));
+					filters.add(filter == null ? "none" : filter.toString());
+				}
+			}
+			return filters;
+		} finally {
+			reader.close();
+		}
+	}
+
 	/** Setting page labels changes nothing else in the catalog. */
 	static void main_pageLabelsKeepTheCatalog(File dir) throws Exception {
 		File in = catalogFixture(dir);
