@@ -160,20 +160,7 @@ public class OutputTab extends Tab {
 		imagePanel.add(compressionType = new JComboBox(new javax.swing.DefaultComboBoxModel(new PdfToImage.TiffCompression[] { PdfToImage.TiffCompression.NONE, PdfToImage.TiffCompression.LZW, PdfToImage.TiffCompression.JPEG, PdfToImage.TiffCompression.ZLIB, PdfToImage.TiffCompression.PACKBITS, PdfToImage.TiffCompression.DEFLATE})), cc.xyw(2, 2, 2));
 		compressionType.addItemListener(new ItemListener() {
 			public void itemStateChanged(ItemEvent arg0) {
-				PdfToImage.TiffCompression selectedTiffCompression = (PdfToImage.TiffCompression) compressionType.getSelectedItem();
-				switch (selectedTiffCompression) {
-				case JPEG:{
-					setOptionsEnabled(true, true, true, colorMode.getSelectedIndex() == 0, false);
-					break;
-				}
-				case ZLIB:{
-					setOptionsEnabled(true, true, true, colorMode.getSelectedIndex() == 0, false);
-					break;
-				}
-				default:
-					setOptionsEnabled(true, true, false, colorMode.getSelectedIndex() == 0, false);
-					break;
-				}
+				setOptionsEnabled(true, true, tiffQuality(), colorMode.getSelectedIndex() == 0, false);
 			}
 		});
 		imagePanel.add(qualityLabel = new JLabel("Quality:"), cc.xy(1, 3));
@@ -297,11 +284,11 @@ public class OutputTab extends Tab {
 			break;
 		}
 		case 7:{
-			setOptionsEnabled(true,true,false,true,false);
+			setOptionsEnabled(true,true,tiffQuality(),true,false);
 			break;
 		}
 		case 100:{ //multipageTiff enabled
-			setOptionsEnabled(true,true,false,true,false);
+			setOptionsEnabled(true,true,tiffQuality(),true,false);
 			break;
 		}
 		default:
@@ -324,6 +311,12 @@ public class OutputTab extends Tab {
 		pageMarks.setEnabled(pdfOptions);
 		optimizeSize.setEnabled(pdfOptions);
 		fullyCompressed.setEnabled(pdfOptions);
+	}
+
+	/** Whether the chosen TIFF compression uses the quality. */
+	private boolean tiffQuality() {
+		Object selected = compressionType.getSelectedItem();
+		return selected == PdfToImage.TiffCompression.JPEG || selected == PdfToImage.TiffCompression.ZLIB;
 	}
 
 	private boolean matchTransparency(boolean transparency) {

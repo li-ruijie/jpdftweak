@@ -72,6 +72,10 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 
 ## ChangeLog
 
+### Unreleased
+
+- Keep the quality slider enabled in the Output tab when switching to TIFF output with JPEG or ZLIB compression selected
+
 ### 2026-10-23 - Version 1.2.1
 
 - Ask for error reports at the GitHub issue tracker in the error dialog, instead of at the original author's address

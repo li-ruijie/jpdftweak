@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.JSlider;
 import javax.swing.SwingUtilities;
 
 import jpdftweak.cli.CommandLineInterface;
@@ -255,12 +256,8 @@ public class RegressionTests {
 
 	/** The Output tab offers transparency for a TIFF only while it is not JPEG-compressed. */
 	static void gui_outputTabDisablesTransparencyForTiffJpeg(File dir) throws Exception {
-		// The tab only checks that a file of the library's name exists.
-		File natives = new File(dir, "natives");
-		natives.mkdirs();
-		new FileOutputStream(new File(natives, File.pathSeparatorChar == ';' ? "mupdf_java64.dll" : "libmupdf_java64.so")).close();
 		final boolean[] enabled = new boolean[6];
-		withJarFolder(natives, new Task() {
+		withJarFolder(libraryStandIn(dir), new Task() {
 			public void run() throws Exception {
 				SwingUtilities.invokeAndWait(new Runnable() {
 					public void run() {
@@ -301,6 +298,55 @@ public class RegressionTests {
 		assertEquals(false, enabled[3], "transparency for a burst TIFF with JPEG");
 		assertEquals(true, enabled[4], "transparency for PNG with JPEG still chosen for TIFF");
 		assertEquals(true, enabled[5], "transparency for a burst TIFF after choosing LZW");
+	}
+
+	/** The Output tab keeps the quality slider for a TIFF compression that uses it when the file type changes. */
+	static void gui_outputTabKeepsQualityForTiffJpeg(File dir) throws Exception {
+		final boolean[] enabled = new boolean[5];
+		withJarFolder(libraryStandIn(dir), new Task() {
+			public void run() throws Exception {
+				SwingUtilities.invokeAndWait(new Runnable() {
+					public void run() {
+						try {
+							OutputTab tab = new OutputTab(null);
+							JCheckBox multipageTiff = (JCheckBox) field(tab, "multipageTiff");
+							JCheckBox burst = (JCheckBox) field(tab, "burst");
+							JSlider qualitySlider = (JSlider) field(tab, "qualitySlider");
+							JComboBox fileType = (JComboBox) field(tab, "fileType");
+							JComboBox compressionType = (JComboBox) field(tab, "compressionType");
+							multipageTiff.doClick();
+							enabled[0] = qualitySlider.isEnabled();
+							compressionType.setSelectedItem(PdfToImage.TiffCompression.JPEG);
+							enabled[1] = qualitySlider.isEnabled();
+							multipageTiff.doClick();
+							multipageTiff.doClick();
+							enabled[2] = qualitySlider.isEnabled();
+							multipageTiff.doClick();
+							burst.doClick();
+							fileType.setSelectedItem(PdfToImage.ImageType.TIFF);
+							enabled[3] = qualitySlider.isEnabled();
+							compressionType.setSelectedItem(PdfToImage.TiffCompression.LZW);
+							enabled[4] = qualitySlider.isEnabled();
+						} catch (Exception ex) {
+							throw new RuntimeException(ex);
+						}
+					}
+				});
+			}
+		});
+		assertEquals(false, enabled[0], "quality for an uncompressed multipage TIFF");
+		assertEquals(true, enabled[1], "quality after choosing JPEG");
+		assertEquals(true, enabled[2], "quality for a multipage TIFF chosen again with JPEG");
+		assertEquals(true, enabled[3], "quality for a burst TIFF with JPEG");
+		assertEquals(false, enabled[4], "quality for a burst TIFF after choosing LZW");
+	}
+
+	/** A folder with an empty file of the library's name, which is all the Output tab checks for. */
+	static File libraryStandIn(File dir) throws IOException {
+		File natives = new File(dir, "natives");
+		natives.mkdirs();
+		new FileOutputStream(new File(natives, File.pathSeparatorChar == ';' ? "mupdf_java64.dll" : "libmupdf_java64.so")).close();
+		return natives;
 	}
 
 	static Object field(Object owner, String name) throws Exception {
