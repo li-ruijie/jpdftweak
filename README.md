@@ -78,6 +78,7 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 - Save uncompressed every stream, where only page contents were before: fonts, attachments, images stored with Flate, and the forms that hold cropped, scaled, or shuffled pages. Images in their own encoding, such as JPEG, keep it
 - Load the passwords, permissions, and metadata setting from documents encrypted with AES-256 or with unencrypted metadata in the Encrypt/Sign tab, which failed and loaded nothing. The mode stays as it was for AES-256, which the tab cannot write, and the user password of an AES-256 document cannot be recovered
 - Say what is wrong with an empty cell, an unknown transition, or a page that does not exist in the Interaction tab, and with a bookmark that cannot be read or written in the Bookmarks tab, which showed the dialog for unexpected errors instead. A failed bookmark export leaves the file as it was, where it emptied it
+- Show an unexpected error in a run, in loading an input file, or in a bookmark import or export in an error box with its message, as other errors are, instead of the dialog for reporting it
 
 ### 2026-10-24 - Version 1.3.1
 

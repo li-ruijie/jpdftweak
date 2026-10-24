@@ -208,6 +208,10 @@ public class InputTab extends Tab {
 				ex.printStackTrace();
 				JOptionPane.showMessageDialog(mf, ex.getMessage(), "Error reading input file", JOptionPane.ERROR_MESSAGE );
 				return;
+			} catch (RuntimeException ex) {
+				ex.printStackTrace();
+				JOptionPane.showMessageDialog(mf, MainForm.errorText(ex), "Error reading input file", JOptionPane.ERROR_MESSAGE );
+				return;
 			}
 			inputFiles.add(f);
 			if (inputFiles.size() == 1) mf.setInputFile(f);

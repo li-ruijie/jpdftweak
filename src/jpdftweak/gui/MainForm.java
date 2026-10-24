@@ -117,6 +117,9 @@ public class MainForm extends JFrame {
 		} catch (IOException ex) {
 			ex.printStackTrace();
 			JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+		} catch (RuntimeException ex) {
+			ex.printStackTrace();
+			JOptionPane.showMessageDialog(this, errorText(ex), "Error", JOptionPane.ERROR_MESSAGE);
 		} catch (OutOfMemoryError ex) {
 			ex.printStackTrace();
 			JOptionPane.showMessageDialog(this, "jPDF Tweak has run out of memory. You may configure Java so that it may use more RAM, or you can enable the Tempfile option on the output tab.", "Out of memory: "+ex.getMessage(), JOptionPane.ERROR_MESSAGE);
@@ -124,6 +127,11 @@ public class MainForm extends JFrame {
 			if (tweak != null) tweak.cleanup();
 			this.setCursor(null);
 		}
+	}
+
+	/** The text of an error box for an unexpected error: its message, or the exception itself if it has none. */
+	public static String errorText(RuntimeException ex) {
+		return ex.getMessage() != null ? ex.getMessage() : ex.toString();
 	}
 
 	public JFileChooser getPdfChooser() {

@@ -1,5 +1,7 @@
 package jpdftweak;
 
+import java.awt.BorderLayout;
+import java.awt.Window;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -26,6 +28,8 @@ import java.util.regex.Pattern;
 
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.JDialog;
+import javax.swing.JOptionPane;
 import javax.swing.JSlider;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
@@ -41,6 +45,7 @@ import jpdftweak.gui.tabs.BookmarkTab;
 import jpdftweak.gui.tabs.EncryptSignTab;
 import jpdftweak.gui.tabs.InteractionTab;
 import jpdftweak.gui.tabs.OutputTab;
+import jpdftweak.gui.tabs.Tab;
 
 import com.itextpdf.text.Document;
 import com.itextpdf.text.DocumentException;
@@ -493,6 +498,79 @@ public class RegressionTests {
 		assertEquals("[Please fill in every cell of the transitions table., Unknown transition: Bogus, Page -5 does not exist., "
 				+ "IOException: Cannot parse bookmark, IOException: Invalid option (no equals sign): foo]", messages.toString(), "messages");
 		assertEquals("1;;Kept;1\n", OperationTests.read(existing), "file kept after a failed export");
+	}
+
+	/**
+	 * An unexpected error in a run reached the uncaught exception handler
+	 * instead of an error box. The box shows the message, or the exception
+	 * itself when it has none.
+	 */
+	static void gui_unexpectedRunErrorsShowAnErrorBox(File dir) throws Exception {
+		final MainForm[] form = new MainForm[1];
+		SwingUtilities.invokeAndWait(new Runnable() {
+			public void run() {
+				form[0] = new MainForm();
+			}
+		});
+		List<String> shown = new ArrayList<String>();
+		try {
+			Tab[] tabs = (Tab[]) field(form[0], "tabs");
+			final Method runTweaks = MainForm.class.getDeclaredMethod("runTweaks");
+			runTweaks.setAccessible(true);
+			for (final RuntimeException error : new RuntimeException[] { new IllegalStateException("Broken"), new NullPointerException() }) {
+				tabs[0] = new Tab(new BorderLayout()) {
+					public String getTabName() {
+						return "Failing";
+					}
+					public void checkRun() {
+						throw error;
+					}
+					public PdfTweak run(PdfTweak input) {
+						return input;
+					}
+				};
+				SwingUtilities.invokeLater(new Runnable() {
+					public void run() {
+						try {
+							runTweaks.invoke(form[0]);
+						} catch (Exception ex) {
+							throw new RuntimeException(ex);
+						}
+					}
+				});
+				shown.add(closeDialog());
+			}
+		} finally {
+			SwingUtilities.invokeAndWait(new Runnable() {
+				public void run() {
+					form[0].dispose();
+				}
+			});
+		}
+		assertEquals("[Error: Broken, Error: java.lang.NullPointerException]", shown.toString(), "error boxes");
+	}
+
+	/** Waits up to 10 seconds for a dialog, closes it, and returns its title and message. */
+	static String closeDialog() throws Exception {
+		for (int i = 0; i < 100; i++) {
+			final String[] found = new String[1];
+			// A modal dialog runs its own event loop, so this gets through while it shows
+			SwingUtilities.invokeAndWait(new Runnable() {
+				public void run() {
+					for (Window w : Window.getWindows()) {
+						if (w instanceof JDialog && w.isShowing()) {
+							JOptionPane pane = (JOptionPane) ((JDialog) w).getContentPane().getComponent(0);
+							found[0] = ((JDialog) w).getTitle() + ": " + pane.getMessage();
+							w.dispose();
+						}
+					}
+				}
+			});
+			if (found[0] != null)
+				return found[0];
+			Thread.sleep(100);
+		}
+		return "no dialog";
 	}
 
 	/** A folder with an empty file of the library's name, which is all the Output tab checks for. */

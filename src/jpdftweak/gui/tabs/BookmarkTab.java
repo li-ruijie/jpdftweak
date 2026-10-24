@@ -70,6 +70,9 @@ public class BookmarkTab extends Tab {
 					} catch (IOException ex) {
 						ex.printStackTrace();
 						JOptionPane.showMessageDialog(mainForm, ex.getMessage(), "Error reading file", JOptionPane.ERROR_MESSAGE);
+					} catch (RuntimeException ex) {
+						ex.printStackTrace();
+						JOptionPane.showMessageDialog(mainForm, MainForm.errorText(ex), "Error reading file", JOptionPane.ERROR_MESSAGE);
 					}	
 				}
 			}
@@ -116,6 +119,9 @@ public class BookmarkTab extends Tab {
 		} catch (IOException ex) {
 			ex.printStackTrace();
 			JOptionPane.showMessageDialog(mainForm, ex.getMessage(), "Error reading file", JOptionPane.ERROR_MESSAGE);
+		} catch (RuntimeException ex) {
+			ex.printStackTrace();
+			JOptionPane.showMessageDialog(mainForm, MainForm.errorText(ex), "Error reading file", JOptionPane.ERROR_MESSAGE);
 		}
 	}
 
@@ -145,6 +151,9 @@ public class BookmarkTab extends Tab {
 		} catch (IOException ex) {
 			ex.printStackTrace();
 			JOptionPane.showMessageDialog(mainForm, ex.getMessage(), "Error reading file", JOptionPane.ERROR_MESSAGE);
+		} catch (RuntimeException ex) {
+			ex.printStackTrace();
+			JOptionPane.showMessageDialog(mainForm, MainForm.errorText(ex), "Error reading file", JOptionPane.ERROR_MESSAGE);
 		}	
 	}
 
