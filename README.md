@@ -72,6 +72,10 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 
 ## ChangeLog
 
+### Unreleased
+
+- Update MuPDF to 1.28.6
+
 ### 2026-10-24 - Version 1.3.2
 
 - Save uncompressed (`-ou`) again when any other option or the Output tab is used, which made the flag do nothing

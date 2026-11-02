@@ -16,8 +16,8 @@
 	<property name="FORMS_SHA256" value="755c79501abd806f5aa83257dc88b2ca5923e6965f3cbfe873116c7c9768210a" />
 	<property name="COMMON_VERSION" value="1.8.1" />
 	<property name="COMMON_SHA256" value="ddca10c16e1dc7a1b399c14580f0aae23014851e57d224cb96c260e6d649d2ad" />
-	<property name="MUPDF_VERSION" value="1.28.5" />
-	<property name="MUPDF_SHA256" value="98a5c10cda20c3992cdf76ff6b2a1149c32bd79cc796d3f703230b1185b7e934" />
+	<property name="MUPDF_VERSION" value="1.28.6" />
+	<property name="MUPDF_SHA256" value="dc85000640a45d90ca9b77b061f6ca67cce0c4d4fbecf8819647baf573eef101" />
 
 	<property name="LIB" value="lib" />
 	<property name="ITEXT" value="${LIB}/itextpdf-${ITEXT_VERSION}.jar" />
