@@ -74,6 +74,7 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 
 ### Unreleased
 
+- Update BouncyCastle to 1.87
 - Update MuPDF to 1.28.6
 
 ### 2026-10-24 - Version 1.3.2
