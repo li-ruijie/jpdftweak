@@ -19,6 +19,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # GitHub disables the schedule of a public repository after 60 days without
+  # activity, and scheduled runs do not count as activity, so this workflow
+  # would stop with no error. Re-enabling it on every run is meant to restart
+  # that count, which GitHub does not document. It depends on no other job, so
+  # it runs when nothing is built or a build fails. The REST call is used
+  # because gh workflow enable resolves only disabled workflows and fails on an
+  # active one.
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Re-enable this workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/upstream.yml/enable"
+
   update:
     name: Look for newer libraries
     runs-on: ubuntu-latest
