@@ -74,6 +74,7 @@ Please report bugs and suggestions at https://github.com/li-ruijie/jpdftweak/iss
 
 ### Unreleased
 
+- Update iText to 5.5.13.7
 - Update BouncyCastle to 1.87
 - Update MuPDF to 1.28.6
 
